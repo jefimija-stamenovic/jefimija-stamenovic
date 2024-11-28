@@ -1,0 +1,2306 @@
+---
+title: "Airbnb"
+author: "Jefimija Stamenović"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Uvod
+
+Za ovaj seminarski rad je korišćen skup podataka "Airbnb" istoimene
+platforme. Skup podataka je dostupan na sledećem linku:
+<https://www.kaggle.com/datasets/ashishjangra27/airbnb-dataset>.
+
+Airbnb je online platforma za rezervisanje smeštaja popularna širom
+sveta. Ona omogućava korisnicima da lako i brzo rezervišu smeštaj bilo
+gde u svetu bilo kada, a omogućava i ugostiteljima da lakše dođu do
+svojih mušterija tako što mogu da postave oglas za izdavanje smeštaja.
+
+Ovaj skup podataka sadrži detalje informacije o različitim Airbnb
+smeštajima u različitim državama. Poseduje informacije o smeštaju,
+domaćinu, lokaciji, ceni, sadržaju i recenzijama gostiju.
+
+Odabrani skup podataka će biti korišćen za predikciju cene smeštaja.
+
+# Opis podataka
+
+Odabrani skup podataka ima 12805 observacija i 22 atributa. U nastavku
+su dati nazivi atributa i njihovo značenje:
+
+-   [**id**]{.underline} - predstavlja jedinstveni identifikator
+    smeštaja na platformi
+
+-   [**name**]{.underline} - predstavlja naziv smeštaja na platformi
+
+-   [**rating**]{.underline} - predstavlja prosečnu ocenu gostiju koji
+    su boravili u smeštaju. Ocena ima vrednosti od 1 do 5. Potencijalno
+    nema vrednost ako je smeštaj nov na platformi.
+
+-   [**reviews**]{.underline} - predstavlja broj dobijenih recenzija
+    koje je smeštaj dobio od gostiju
+
+-   [**host_name**]{.underline} - predstavlja ime/naziv domaćina
+    smeštaja (može biti fizičko/pravno lice)
+
+-   [**host_id**]{.underline} - predstavlja jedinstveni identifikator
+    domaćina
+
+-   [**address**]{.underline} - predstavlja lokaciju smeštaja u obliku
+    **grad, region, država**
+
+-   [**features**]{.underline} - predstavlja sažetak karakteristika,
+    odnosno daje sažetak kapaciteta smeštaja u formi **broj gostiju,
+    broj spavaćih soba, broj kreveta, broj kupatila**
+
+-   [**amenities**]{.underline} - označava listu dodatnih pogodnosti i
+    sadržaja koje smeštaj nudi gostima tokom boravka kao što su na
+    primer WiFi, klima uređaj, parking, terasa ili bazen.
+
+-   [**price**]{.underline} - predstavlja cenu noćenja u lokalnoj
+    valuti, a ujedno je to i vrednost koja se **predviđa**
+
+-   [**country**]{.underline} - predstavlja državu u kojoj se smeštaj
+    nalazi
+
+-   [**bathrooms**]{.underline} - predstavlja broj kupatila koje smeštaj
+    nudi gostima
+
+-   [**beds**]{.underline} - predstavlja broj kreveta koji su na
+    raspolaganju gostima
+
+-   [**guests**]{.underline} - predstavlja maksimalan broj gostiju koji
+    može da se smesti tj. kapacitet smeštaja
+
+-   [**toilets**]{.underline} - predstavlja broj toaleta u smeštaju
+    dostupnih gostima
+
+-   [**bedrooms**]{.underline} - predstavlja broj spavaćih soba u
+    smeštaju gde gosti mogu da spavaju
+
+-   [**studios**]{.underline} - predstavlja da li je smeštaj studio ili
+    ne
+
+-   [**checkin**]{.underline} - predstavlja vreme prijave, odnosno vreme
+    dolaska u smeštaj koje je domaćin naveo prilikom kreiranja oglasa
+
+-   [**checkout**]{.underline} - predstavlja vreme odjave, odnosno vreme
+    napuštanja smeštaja koje je domaćin naveo prilikom kreiranja oglasa
+
+-   [**safety_rules**]{.underline} - sadrži informacije o pravilima
+    bezbednosti
+
+-   [**house_rules**]{.underline} - sadrži pravila ponašanja u smeštaju
+    koje gosti moraju da poštuju
+
+-   [**img_links**]{.underline} - sadrži linkove ka slikama smeštaja
+
+# Priprema podataka
+
+## Učitavanje biblioteka
+
+Za dalji rad, potrebno je da se uvezu sledeće biblioteke. One će se
+koristiti za vizuelizaciju i analizu podataka, kao i za predikciju
+modela.
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(viridisLite)
+library(countrycode)
+library(corrplot)
+library(leaps)
+library(glmnet)
+library(randomForest)
+library(car)
+library(caret)
+library(Matrix)
+library(neuralnet)
+```
+
+## Učitavanje podataka
+
+Da bi se uopšte radilo sa podacima, potrebno je da se učitaju iz csv
+fajla. Učitani podaci će biti čuvani u promenljivoj **airbnb_df**.
+
+```{r}
+airbnb_df = read.csv('airbnb.csv')
+```
+
+Nakon učitavanja skupa podataka, potrebna je informacija o obimu skupa
+podataka, odnosno, koliki je broj observacija (redova) i atributa
+(kolona).
+
+```{r}
+rows = nrow(airbnb_df)
+columns = ncol(airbnb_df)
+```
+
+Ispis vrednosti promenljivih **rows** i **columns**:
+
+```{r}
+sprintf("Broj redova: %d", rows)
+sprintf("Broj kolona: %d", columns)
+```
+
+Kao što je već rečeno, broj observacija je **12805**, a broj atributa
+**23**.
+
+Sada kada su poznate dimenzije skupa podataka, potrebno je da se
+pogledaju podaci kako bi se stekla inicijalna slika o njima. To je
+moguće korišćenjem funkcije **head** koja izlistava prvih n observacija
+skupa podataka. Podrazumevana vrednost za n je 6, ali je moguće
+izlistati više ili manje observacija tako što će se dodeliti proizvoljna
+vrednost parametru n.
+
+```{r}
+head(airbnb_df)
+```
+
+Prva kolona je X i ona reprezentuje indeks datog reda, pa je potrebno
+prepraviti učitavanje skupa podataka u skladu sa tim:
+
+```{r}
+airbnb_df = read.csv('airbnb.csv', row.names = "X")
+head(airbnb_df)
+```
+
+Nakon učitavanja, potrebno je informisanje i o nazivima kolona:
+
+```{r}
+colnames(airbnb_df)
+```
+
+Prisutna je slovna greška u koloni **hourse_rules**. Ova kolona se
+odnosi na kućna pravila pa će biti preimenovana u **house_rules.**
+
+```{r}
+airbnb_df = airbnb_df %>%
+  rename(house_rules = hourse_rules) 
+```
+
+Sada kada je završen rad sa kolonama, biće date neke osnovne statističke
+informacije o kolonama, kao i sažetak o tipovima podataka u kolonama i
+nekoliko prvih vrednosti
+
+Statističke informacije o kolonama je moguće videti pozivom funkcije
+**summary**:
+
+```{r}
+summary(airbnb_df)
+```
+
+Rezultat funkcije **summary** za numeričke kolone jesu informacije o
+kvantilima, maksimalnoj i minimalnoj vrednosti, medijani i srednjoj
+vrednosti, dok su za kategorijske promenljive date informacije o broju
+ne-null vredosti i tipu podataka u toj koloni. **Za sada nisu uočene NA
+vrednosti ni za numeričke ni za kategorijske promenljive.**
+
+Funkcija **str** daje uvid u pregled strukture kolona i za svaku kolonu
+prikazuje njen tip, broj redova i nekoliko prvih vrednosti u toj koloni.
+
+```{r}
+str(airbnb_df)
+```
+
+Primećeno je da je dosta kolona tekstualnog formata. Potencijalni
+problemi sa njima su:
+
+-   Mogu postojati nepotrebni razmaci na početku i kraju tekstualnih
+    vrednosti
+
+-   Funkcija **summary** ne detektuje prazan string kao NA vrednost. To
+    znači da je moguće postojanje skrivenih NA vrednosti u vidu praznog
+    stringa.
+
+Prvo će se rešavati problem prve tačke - tj. problem razmaka na početku
+i kraju tekstualnih vrednosti. Treba videti koje kolone su tipa **chr**
+(to su kolone tekstualnog tipa).
+
+```{r}
+airbnb_df %>%
+  select_if(is.character) %>%
+  str()
+```
+
+Zaista su prisutni nepotrebni razmaci u prvih nekoliko observacija
+kolona **country, checkin, checkout**. Međutim, nije isključeno da su
+nepotrebni razmaci prisutni i u ostalim kolonama, ali da trenutno nisu
+vidljivi (nisu u prvih nekoliko observacija koje je izlistala funkcija
+**str**). Sledeći niz funkcija uklanja nepotrebne razmake i rešava
+problem umetnutih razmaka na početku i kraju teksta:
+
+```{r}
+airbnb_df = airbnb_df %>%
+  mutate(across(where(is.character), trimws))
+```
+
+Ukoliko je neka observacija u kolonama tekstualnog formata imala samo
+razmak, tj. " " kao svoju vrednost, prethodna sekcija koda je pretvorila
+tu vrednost u prazan string tj. "".
+
+Da bi bio zagarantovan rezultat, biće dat pregled početnih vrednosti u
+kolonama **country, checkin, checkout** jer je u njima inicijalno i
+primećen problem:
+
+```{r}
+airbnb_df %>%
+  select(country, checkin, checkout) %>%
+  str()
+```
+
+Dakle, problem razmaka je rešen.
+
+## Čišćenje podataka
+
+Drugi problem promenjlivih tekstualnog formata jeste da li su njihove
+vrednosti prazni stringovi jer ako jesu, onda su to zapravo nedostajuće
+vrednosti. Sledeći kod proverava da li zaista postoje prazni stringovi
+među podacima:
+
+```{r}
+na_values <- airbnb_df %>% 
+  select(where(is.character)) %>%
+  sapply(function(col) {
+    sum(col == "", na.rm = TRUE)
+  })
+na_values = data.frame(na_count = na_values)
+na_values
+```
+
+Dakle, zaista među podacima postoje prazni stringovi tj. NA vrednosti,
+ali samo u koloni **host_name**.
+
+Naredni korak jeste da se svi prazni stringovi zamene sa NA u koloni
+**host_name**.
+
+```{r}
+airbnb_df$host_name[airbnb_df$host_name == ""] = NA 
+```
+
+Sada, broj NA vrednosti može da se vidi i na sledeći način:
+
+```{r}
+na_values <- airbnb_df %>% 
+  select(where(is.character)) %>%
+  sapply(function(col) {
+    sum(col == "", na.rm = TRUE) + sum(is.na(col))
+  })
+na_values = data.frame(na_count = na_values)
+na_values
+```
+
+Dakle, NA vrednosti su prisutne u kolonama **host_name, checkin,
+checkout**.
+
+Da bi se donela prava odluka o tome da li treba brisati redove ili
+kolone sa NA vrednostima, ili pak, može da se uradi imputacija, biće
+izračunat procentualni udeo NA vrednosti u tim kolonama:
+
+```{r}
+na_values_filtered <- na_values %>%
+  filter(na_count > 0) %>%
+  mutate(
+    na_percentage=(na_count*100)/rows
+  )
+na_values_filtered
+```
+
+Grafički prikaz ovog data frame-a je:
+
+```{r}
+predictors = row.names(na_values_filtered) 
+
+ggplot(na_values_filtered, aes(x = predictors, y = na_percentage, fill=predictors)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = sprintf("%.2f%% (%d)", na_percentage, na_count)),
+            vjust = -0.5, color = "black", size = 4) +
+  ylim(0, 100) +
+  labs(title = "NA vrednosti po kolonama",
+       x = "Atributi", 
+       y = "NA u %") + 
+  theme_minimal() +
+  theme(legend.position = "bottom", plot.title=element_text(hjust = 0.5)) + 
+  scale_fill_brewer(palette = "Set2")
+```
+
+Na osnovu dobijenih vrednosti i prikazanog grafika, mogu se doneti
+sledeći zaključci:
+
+-   kolona **checkin** ima **6,25% NA vrednosti**, odnosno fali **800**
+    podataka u ovoj koloni. Ako bi se razmatralo brisanje redova, moglo
+    bi da se ostane bez dobrog broja podataka za obučavanje modela, tako
+    da brisanje redova ne dolazi u obzir. Brisanje kolone bi već moglo
+    da se razmatra, ali je potrebna dalja analiza kako bi se utvrdilo da
+    li je bolje rešenje brisanje ili imputacija podataka.
+
+-   kolona **checkout** ima čak **20% NA vrednosti** (brojčano
+    **2450**), dakle ne bi bilo pametno da se ti redovi brišu jer imaju
+    veliki udeo. Što se kolone tiče, ni njeno brisanje nije
+    preporučljivo jer ima solidan broj podataka, tako da je bolja opcija
+    imputacija podataka za NA vrednosti.
+
+-   kolona **host_name** ima samo **0.06% NA vrednosti** (svega **8**
+    podataka), tako da bi observacije sa NA vrednošću za **host_name**
+    mogle slobodno da se brišu.
+
+Nakon identifikacije NA vrednosti, doneti su sledeći zaključci za
+njihovu obradu:
+
+-   brisanje redova gde je NA vrednost za **host_name** jer je broj
+    redova izuzetno mali, pa neće značajno uticati na dalji tok rada
+
+-   imputacija podataka za NA vrednosti u kolonama **checkin** i
+    **checkout**
+
+Za kolonu **host_name** je donet zaključak da se redovi sa NA vrednošću
+brišu jer ih je jako malo (ni 1%):
+
+```{r}
+airbnb_df = drop_na(airbnb_df, host_name)
+sum(is.na(airbnb_df$host_name))
+rows = nrow(airbnb_df)
+```
+
+Nedostajuće vrednosti su i dalje prisutne u još dve kolone **checkin** i
+**checkout**. S obzirom da je broj nedostajućih vrednosti značajan i za
+jednu i za drugu kolonu, nije moguće brisanje po redovima. Zato se radi
+imputacija tih vrednosti.
+
+Pažljovom analizom skupa podataka, uočeno je da u koloni **house_rules**
+postoje dodatne informacije kao što su: kad je check-in, kad je
+check-out, da li su dozvoljeni ljubimci, pušenje, itd.
+
+```{r}
+head(airbnb_df$house_rules) 
+```
+
+Dakle, postoje kolone **checkin** i **checkout**, ali postoje i njihove
+vrednosti u okviru kolone **house_rules**. Ako ovi podaci postoje u
+koloni **house_rules,** a ne postoje u kolonama **checkin** i
+**checkout**, onda bi vrednosti iz kolone **house_rules** mogle da se
+iskoriste za popunjavanje NA vrednosti u kolonama **checkin** i
+**checkout**.
+
+Takođe, na osnovu kolone **house_rules** možemo da dobijemo informacije
+da li je u smeštaju dozvoljeno pušenje, kućni ljubimci itd.
+
+Prvo se proverava kolona **checkin**. Potrebno je da se iz teksta u
+koloni **house_rules** izvuče vrednost za **checkin**, a to je moguće
+upotrebom regex-a:
+
+```{r}
+regex <- "Check-in: [^,]+"
+check_info = str_extract(airbnb_df$house_rules, regex)
+check_info = str_replace(check_info, "Check-in: ", "")
+check_info = str_replace_all(check_info, ":", " ")
+check_info = data.frame(checkin_possible=check_info)
+head(check_info)
+```
+
+Cilj je da se nađu observacije koje nemaju vrednost za kolonu
+**checkin**, ali imaju u koloni **checkin_possible**.
+
+```{r}
+check_info$checkin_real=airbnb_df$checkin
+head(check_info)
+```
+
+Za prvih nekoliko observacija, ove vrednosti su iste. Proveriće se da li
+se postoje redovi gde se ove dve kolone razlikuju:
+
+```{r}
+length(which(check_info$checkin_real != check_info$checkin_possible))
+```
+
+Ne postoje redovi gde se ove dve vrednosti razlikuju, pa samim tim i
+nije moguće koristiti vrednosti iz kolone **house_rules** za
+popunjavanje NA vrednosti u koloni **checkin**,
+
+Da li je ista situacija i sa kolonom **checkout**?
+
+```{r}
+regex <- "Check out: [^,]+"
+check_info$checkout_real = airbnb_df$checkout
+check_info$checkout_possible = str_extract(airbnb_df$house_rules, regex)
+check_info$checkout_possible = str_replace(check_info$checkout_possible, "Check out: ", "")
+check_info$checkout_possible = str_replace_all(check_info$checkout_possible, ":", " ")
+head(check_info)
+```
+
+Zaključak je isti kao i malopre - vrednosti prvih nekoliko redova su
+iste, ali je potrebno proveriti da li se za neke redove razlikuje,
+
+```{r}
+length(which(check_info$checkout_real != check_info$checkout_possible))
+```
+
+Zaključak je isti kao i za **checkin. Nije moguće koristiti podatke iz
+kolone house_rules za popunjavanje NA vrednosti u kolonama checkin i
+checkout jer se vrednosti podudaraju.**
+
+Za imputaciju NA vrednosti biće korišćene najučestalije vrednosti za ove
+dve kolone. Zato je potrebno da se prvo odrede ove vrednosti.
+
+Raspodela po vrednostima u koloni **checkin**:
+
+```{r}
+checkin_count = airbnb_df %>% 
+  filter(!is.na(checkin)) %>%
+  count(checkin, sort = TRUE) %>%
+  rename(count=n)
+
+head(checkin_count) 
+```
+
+Najzastupljenija vrednost jeste *After 3 00 pm* tako da će ona biti
+korišćena za imputaciju u koloni **checkin**. Biće sačuvana u
+promenljivoj:
+
+```{r}
+checkin_top_freq = checkin_count$checkin[1]
+checkin_top_freq
+```
+
+Raspodela po vrednostima u koloni **checkout**:
+
+```{r}
+checkout_count = airbnb_df %>% 
+  filter(!is.na(checkout)) %>%
+  count(checkout, sort = TRUE) %>%
+  rename(count=n)
+
+head(checkout_count)
+```
+
+Najzastupljenija vrednost u koloni **checkout** je *11 00 am* i biće
+sačuvana u promenljivoj:
+
+```{r}
+checkout_top_freq = checkout_count$checkout[1]
+checkout_top_freq
+```
+
+Sledi imputacija podataka u ovim kolonama:
+
+```{r}
+airbnb_df$checkin[is.na(airbnb_df$checkin)] = checkin_top_freq
+sum(is.na(airbnb_df$checkin))
+```
+
+```{r}
+airbnb_df$checkout[is.na(airbnb_df$checkout)] = checkout_top_freq
+sum(is.na(airbnb_df$checkout))
+```
+
+# Analiza, transformacija i vizeulizacija podataka
+
+Kolone koje postoje u ovom skupu podataka su sledeće:
+
+```{r}
+colnames(airbnb_df)
+```
+
+Potrebna je analiza kolona kako bi se kasnije donele odluke o tome koje
+su pogodne za korišćenje u modelu predikcije.
+
+## Id, name, host_id, host_name i img_links
+
+Kolona id čuva podatak o jedinstvenom identifikatoru za svaki smeštaj,
+host_id je jedinstveni iden
+
+Pregled broja jedinstvenih podataka u kolonama **id, name, host_id,
+host_name** i **img_links**
+
+```{r}
+length(unique(airbnb_df$id))
+length(unique(airbnb_df$name))
+length(unique(airbnb_df$host_id))
+length(unique(airbnb_df$host_name))
+length(unique(airbnb_df$img_links))
+```
+
+U kolonama **id, name i img_links** je prisutan veliki broj jedinstvenih
+vrednosti (za svaku kolonu ima minimalno 10368 jedinstvenih vrednosti od
+12797 observacija), tako da je zarad dalje obrade podataka, bolje da se
+ove kolone eliminišu iz skupa podataka. Razlog za to je što ove kolone
+ne pružaju dovoljno relevantnih informacija koje bi mogle da doprinesu
+modelu predviđanja cene smeštaja.
+
+Kolona **host_name** bi mogla da bude korisna u daljem radu iako ima
+značajan broj jedinstvenih vrednosti (manji u poređenju sa prethodne tri
+kolone). Razlog za to je što ime domaćina može biti bitno za predviđanje
+cene smeštaja. Popularnost domaćina može značajno uticati na percepciju
+gostiju o kvalitetu usluge, što može direktno uticati na formiranje cena
+smeštaja.
+
+Međutim, iako kolona **host_name** ima 6837 observacija, broj
+jedinstvenih **host_id** vrednosti je 10368 što znači da postoje
+domaćini sa istim imenom, ali različitim jedinstvenim identifikatorom.
+
+Moguće je da se radi o istom domaćinu, ali da ima više naloga za
+smeštaje zbog toga što su smeštaji na različitim lokacijama po gradu ili
+državi pa za svaki smeštaj ima po jedan nalog. U toj situaciji, kolona
+bi mogla da se koristi za dalje predviđanje. Međutim, šta ako su
+smeštaji u različitim državama koje pritom nisu susedne?
+
+```{r}
+host_name_with_multiple_id <- airbnb_df %>%
+  group_by(host_name) %>%
+  summarise(unique_host_ids = n_distinct(host_id)) %>%
+  filter(unique_host_ids > 1) %>%
+  select(host_name)
+
+filtered_airbnb_df <- airbnb_df %>%
+  filter(host_name %in% host_name_with_multiple_id$host_name)
+
+host_multiple_countries <- filtered_airbnb_df %>%
+  group_by(host_name) %>%
+  summarise(unique_countries = n_distinct(country)) %>%
+  filter(unique_countries > 1) %>%
+  select(host_name)
+
+filtered_airbnb_df <- filtered_airbnb_df %>%
+  filter(host_name %in% host_multiple_countries$host_name)
+
+filtered_airbnb_df %>%
+  group_by(host_name, host_id, country, address) %>%
+  summarise(count = n()) %>%
+  arrange(host_name) %>%
+  head(n=50)
+```
+
+Slika ispod dokazuje da kolona **host_name** sama po sebi ne bi bila
+pouzdana za predikciju cene smeštaja jer se isto ime vlasnika pojavljuje
+u četiri različite države (Šri Lanka, Indonezija, Poljska, Nemačka). Ovo
+ukazuje da ime domaćina nije dovoljno samo po sebi da bi se
+identifikovala jedinstvenost ili kvalitet smeštaja.
+
+![](images/clipboard-2443627906.png)
+
+Kombinacija **host_name** i **host_id** omogućava bolje razumevanje
+reputacije vlasnika smeštaja među gostima. Dok **host_id** daje
+jedinstveni identifikator vlasnika, **host_name** pruža dodatne
+informacije o prepoznatljivosti vlasnika. Ovi atributi zajedno doprinose
+analizi očekivanja gostiju i modelovanju cena smeštaja, uzimajući u
+obzir reputaciju vlasnika i druge faktore poput lokacije i ponuđenih
+usluga. Međutim, varijabilnost kolone host_id je velika, tako da ne bi
+doprinela u predikciji cena.
+
+Dakle, iz skupa podataka se isključuju kolone **id, name, img_links,
+host_name, host_id**.
+
+```{r}
+airbnb_df = airbnb_df %>%
+  select(-c(id, name, img_links, host_name, host_id))
+```
+
+## Rating
+
+Kolona **rating** predstavlja prosečnu ocenu smeštaja. Može da ima
+vrednost od 1 do 5.
+
+```{r}
+head(airbnb_df$rating, 10)
+```
+
+Na osnovu pregleda vrednosti, vidi se da je kolona **rating** trenutno
+tipa **character** iako bi trebalo da bude numerička promenljiva s
+obzirom da čuva decimalne vrednosti. Problem pravi specifična vrednost
+**New** koju mora da se obradi. Za smeštaj koji ima oznaku **New** ne
+sme da se stavi vrednost 0 jer on nema zaista prosečnu ocenu 0. To je
+novi smeštaj na platformi i zato te vrednosti treba popuniti sa NA kako
+bi bio moguć dalji rad sa kolonom:
+
+```{r}
+airbnb_df$rating[airbnb_df$rating == "New"] = NA
+airbnb_df$rating = as.numeric(airbnb_df$rating)
+```
+
+Ispod je dat prikaz prvih 10 najzastupljenijih vrednosti u koloni i
+njihov broj pojavljivanja:
+
+```{r}
+airbnb_df %>% 
+  count(rating, sort=TRUE) %>%
+  rename(count = n) %>%
+  head(n=10)
+```
+
+Kakva je distribucija podataka?
+
+```{r}
+airbnb_df%>%
+  filter(!is.na(rating))%>%
+  ggplot(aes(x = rating)) +
+  geom_histogram(binwidth = 0.2, fill = "aquamarine", breaks = seq(0, 5, by = 0.25)) +
+  labs(title = "Distribucija podataka kolone rating",
+       x = "Prosečna ocena",
+       y = "Ukupno") +
+  theme_minimal()
+```
+
+Histogram potvrđuje ono što prikazuje tabela iznad, većina smeštaja ima
+prosečnu ocenu veću od 4.75 (preko 6000), malo manje od 2000 smeštaja
+ima ocenu između 4.5 i 4.75, izuzetno mali broj smeštaja ima ocenu ispod
+4.5, a smeštaji čija je prosečna ocena ispod 4 nisu čak ni vidljivi na
+grafiku. Naredni grafik je modifikovan kako bi se videla i njihova
+raspodela:
+
+```{r}
+airbnb_df%>%
+  filter(!is.na(rating) & rating <= 4)%>%
+  ggplot(aes(x = rating)) +
+  geom_histogram(fill = "aquamarine", breaks = seq(0, 4, by = 0.2)) + 
+  labs(title = "Distribucija podataka gde je rating <= 4",
+       x = "Prosečna ocena",
+       y = "Ukupno") +
+  theme_minimal()
+```
+
+Dakle, ne postoje smeštaji čija je prosečna ocena ispod 2.5, a i broj
+smeštaja koji imaju prosečnu ocenu manju ili jednaku od 4 je izuzetno
+mali (nema čak ni 20 takvih smeštaja).
+
+Pregled statističkih informacija ove kolone bi trebalo da potvrde ove
+zaključke. Dat je pregled statističkih informacija upotrebom funkcije
+**summary**, ali i grafičkim prikazom boxplot-a:
+
+```{r}
+summary(airbnb_df$rating)
+```
+
+```{r}
+airbnb_df %>%
+  filter(!is.na(rating)) %>%
+  ggplot(aes(x = "", y = rating)) +
+  geom_boxplot(fill = "aquamarine", color = "black", outlier.colour = "darkgoldenrod1") +
+  stat_summary(fun.data = "mean_cl_normal", geom = "errorbar") +
+  theme_minimal() + 
+  labs(title = "Boxplot kolone rating", y = "Prosečna ocena") +
+  theme(legend.position = "bottom", plot.title=element_text(hjust = 0.5))
+
+```
+
+**Analiza grafika i tabele:** Minimalna prosečna ocena je 3. U prvom
+kvantilu, odnosno, prva četvrtina ocena (25% ocena) je manja od 4.77.
+Mediana je 4.89, dok je srednja vrednost 4.857. Tri četvrtine ocena je
+manje od 4.98. Maksimalna vrednost je 5 što je i najveća moguća ocena.
+Broj NA vrednosti je 4237. Posledica visokih vrednosti kvantila je što
+su vrednosti od 3 do 4.5 prikazane kao ekstremne vrednosti na boxplot
+grafiku.
+
+Da li bi grafik distribucije prosečnih ocena izgledao bolje ako bi se od
+svake ocene oduzela prosečna vrednost odnosno kada bi se standardizovali
+podaci?
+
+```{r}
+avg_rating = mean(airbnb_df$rating, na.rm = TRUE)
+airbnb_df$standard_rating = airbnb_df$rating - avg_rating
+```
+
+```{r}
+summary(airbnb_df$standard_rating)
+```
+
+```{r}
+airbnb_df %>%
+  filter(!is.na(standard_rating)) %>%
+  ggplot(aes(x = "", y = standard_rating)) +
+  geom_boxplot(fill = "aquamarine", color = "black", outlier.colour = "darkgoldenrod1") +
+  stat_summary(fun.data = "mean_cl_normal", geom = "errorbar") +
+  theme_minimal() + 
+  labs(title = "Rating: Boxlot centriranih podataka", y = "Prosečna ocena") +
+  theme(legend.position = "bottom", plot.title=element_text(hjust = 0.5))
+```
+
+```{r}
+airbnb_df%>%
+  filter(!is.na(standard_rating))%>%
+  ggplot(aes(x = standard_rating)) +
+  geom_histogram(binwidth=0.05, fill = "aquamarine") +
+  labs(title = "Rating: Distribucija centriranih podataka",
+       x = "Odstupanje od srednje vrednosti",
+       y = "Ukupno") +
+  theme_minimal()
+```
+
+Većina prosečnih vrednosti odstupa od srednje vrednosti između -0.5 i
+0.15. Centriranje podataka omogućava fokus na relativne razlike među
+ocenama jer se eliminiše uticaj globalne prosečne vrednosti. Na ovaj
+način mogu da se uoče potencijalne anomalije ili trendovi.
+
+Gostima je jako bitno kakav je smeštaj i prilikom rezervisanja bitno im
+je da li je smeštaj dobar, vrlo dobar, odličan, zadovoljavajuć i sl. Ove
+kategorije se prave na osnovu prosečne ocene smeštaja tako što se
+definišu intervali i svi smeštaji sa ocenama iz određenog intervala
+pripadaju jednoj kategoriji. Vrednosti kvantila za prosečnu ocenu su
+jako visoke i ne oslikavaju realne kategorije smeštaja. Na osnovu
+domenskog znanja, sprovedena je sledeća podela kategorija na osnovu
+rejtinga čiji je tabelarni i vizuelni prikaz dat ispod:
+
+```{r}
+breaks = c(-Inf, 0, 3.00, 4.00, 4.25, 4.50, 4.75, 5.00)
+labels = c("New", "Poor", "Fair", "Good", "Very Good", "Excellent", "Perfect")
+airbnb_df$rating_cat = cut(airbnb_df$rating,  
+                           breaks = breaks, 
+                           labels = labels)
+airbnb_df$rating_cat[is.na(airbnb_df$rating)] = "New"
+airbnb_df$rating_cat = factor(airbnb_df$rating_cat)
+summary(airbnb_df$rating_cat)
+```
+
+```{r}
+ggplot(airbnb_df, aes(x = rating_cat, fill = rating_cat)) +
+  geom_bar(stat = "count") +
+  geom_text(stat = "count", aes(label = ..count..),
+            vjust = -0.5, color = "black", size = 3) +
+  labs(title = "Kategorije smeštaja",
+       x = "Kategorija", 
+       y = "Broj smeštaja") + 
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set2")
+```
+
+Grafik prikazuje da većina smeštaja na platformi pripada kategoriji
+"Excellent" i "Perfect". Sa druge strane, prisutan je jako mali broj
+smeštaja koji pripadaju ostalim kategorijama. Takođe, na platformi je
+prisutan veliki broj novih smeštaja - čak 4237.
+
+Zbog neravnomerne raspodele podataka, odlučeno je da se koriste
+centralizovani podaci u daljoj analizi jer centralizacija podataka omogućava bolju balansiranost i distribuciju podataka. 
+
+Tabelarni prikaz:
+
+```{r}
+breaks = c(-Inf, -1.857, -1.37, -0.087, 0.033, 0.000, 0.125, 0.143) 
+labels = c("New", "Poor", "Fair", "Good", "Very Good", "Excellent", "Perfect")
+airbnb_df$rating_cat = cut(airbnb_df$standard_rating,  
+                           breaks = breaks, 
+                           labels = labels)
+airbnb_df$rating_cat[is.na(airbnb_df$rating)] = "New"
+airbnb_df$rating_cat = factor(airbnb_df$rating_cat)
+summary(airbnb_df$rating_cat)
+```
+
+Grafički prikaz:
+
+```{r}
+ggplot(airbnb_df, aes(x = rating_cat, fill = rating_cat)) +
+  geom_bar(stat = "count") +
+  geom_text(stat = "count", aes(label = ..count..),
+            vjust = -0.5, color = "black", size = 3) +
+  labs(title = "Kategorije smeštaja na osnovu centriranih podataka kolone rating",
+       x = "Kategorija", 
+       y = "Broj smeštaja") + 
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set2")
+```
+
+Očekivano, ocene su sada ravnomernije raspoređene zahvaljujući primeni tehnike centralizacije.
+
+## Guests
+
+Kolona **guests** predstavlja maksimalan broj gostiju koji može da bude
+u smeštaju, odnosno koji je kapacitet smeštaja
+
+```{r}
+head(airbnb_df$guests, 10)
+```
+
+Tabelarni i grafički broja smeštaja po kapacitetu (broj gostija koji
+smeštaj prima) :
+
+```{r}
+xtabs(~guests, data=airbnb_df)
+```
+
+```{r}
+airbnb_df %>%
+  ggplot(aes(x = factor(guests), fill = factor(guests))) +
+  geom_bar(stat = "count", color = "black") +
+  geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.5, color = "black", size = 4) +
+  labs(title = "Broj smeštaja po kapacitetu",
+       x = "Kapacitet smeštaja",
+       y = "Broj smeštaja") +
+  scale_x_discrete(labels = 1:16) + 
+  theme_minimal() +
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
+
+```
+
+Najviše smeštaja ima kapacitet za dvoje gostiju, što čini 3727 smeštaja. Takođe, značajan broj smeštaja ima kapacitet za četvoro gostiju (2604). Smeštaji sa kapacitetom za šest gostiju su nešto manje zastupljeni (1469), dok se smeštaji za tri gosta javljaju u 1228 observacija. Primetan je i broj smeštajnih jedinica koje mogu primiti više od šest gostiju, što može ukazivati na prisustvo hostela ili drugih vrsta smeštaja sa većim kapacitetom.
+
+## Beds
+
+Kolona **beds** predstavlja kreveta u smeštaju
+
+```{r}
+head(airbnb_df$beds, 10)
+```
+
+Tabelarni i grafički prikaz broja kreveta u smeštajima:
+
+```{r}
+xtabs(~beds, data=airbnb_df)
+```
+
+```{r}
+airbnb_df %>%
+  ggplot(aes(x = beds,  fill = factor(beds))) +
+  geom_bar(stat = "count", color = "black") +
+  labs(title = "Broj smeštaja prema broju kreveta",
+       x = "Broj kreveta",
+       y = "Broj smeštaja") +
+  theme_minimal() +
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
+```
+
+Određeni broj smeštaja (275) nema krevete, što ih čini potencijalnim outlier-ima u skupu podataka. Najviše smeštaja ima 1 krevet (3970), dok nešto manje ima 2 (2981), tri (1778) i četiri kreveta (1283). Takođe, postoji i određeni broj smeštaja sa 5 ili više kreveta.
+
+Treba razmotriti brisanje smeštaja koji nemaju nijedan krevet. Smeštaj ne može da ima 0 kreveta, pa bi takve vrednosti mogle da se obrišu ukoliko njihov broj podataka nema značajan udeo u celokupnom skupu podataka.
+
+```{r}
+length(which(airbnb_df$beds == 0)) * 100/ nrow(airbnb_df)
+```
+Procentualni udeo smeštaja u kojima nema kreveta u odnosu na ukupan broj observacija u skupu je približno 2.15%. S obzirom da se radi o malom broju observacija, one će biti isključene iz skupa podataka.
+
+```{r}
+airbnb_df = airbnb_df %>%
+  filter(beds> 0)
+```
+
+Raspodela broja soba po kapacitetu smeštaja tabelarno i vizuelno nakon
+filtriranja:
+
+```{r}
+xtabs(~beds+guests, data = airbnb_df)
+```
+
+```{r}
+ggplot(airbnb_df, aes(x = guests, y = beds)) +
+  geom_jitter(aes(color = factor(beds)), width = 0.3, height = 0.3, size = 2) +
+  scale_color_viridis_d() +
+  labs(title = "Broj kreveta u odnosu na kapacitet smeštaja",
+       x = "Kapacitet smeštaja (broj gostiju)",
+       y = "Broj kreveta") +
+  scale_x_continuous(breaks = 1:16, labels = 1:16) +
+  theme_minimal() + 
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
+```
+Najveći broj smeštaja prima 2 gosta na 1 ili na 2 kreveta. Za određene kapacitete je znatno veći broj kreveta nego što je broj kreveta (tri gosta, 98 kreveta) što definitivno treba smatrati ekstremnom vrednošću. 
+
+```{r}
+airbnb_df <- airbnb_df %>%
+  group_by(guests) %>%
+  mutate(outlier_bedrooms = ifelse(abs(bedrooms - median(bedrooms)) > 1.5 * IQR(bathrooms), TRUE, FALSE))
+
+outlier_bedrooms_df = airbnb_df %>%
+  filter(outlier_bedrooms == TRUE)
+
+nrow(outlier_bedrooms_df)
+```
+Postoji 2051 observacija koje su potencijalni outlieri. Grafički prikaz potencijalnih outlier-a:
+
+```{r}
+ggplot(airbnb_df, aes(x = factor(guests), y = beds, fill = factor(guests))) +
+  geom_boxplot(outlier.colour = "red", outlier.size = 3) +  
+  scale_fill_viridis_d() + 
+  labs(title = "Broj kreveta u odnosu na kapacitet smeštaja sa označenim outlierima",
+       x = "Kapacitet smeštaja (broj gostiju)",
+       y = "Broj kreveta") +
+  scale_x_discrete(labels = 1:16) + 
+  theme_minimal() +
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
+```
+Grafik smatra i outlierima one smeštaje koji imaju veći kapacitet od broj kreveta, što ne mora da znači. Ako je broj gostiju 4, moguće je da dve osobe dele jedan krevet. Međutim, outlier-om mogu da se smatraju observacije koje imaju znatno veći broj kreveta od kapaciteta smeštaja npr. za smeštaje gde je maksimalan broj gostiju 3, ima 98 krevet ili ako nа jedan krevet ide više od dve osobe. 
+
+```{r}
+airbnb_df = airbnb_df %>%
+  group_by(guests) %>%
+  mutate(outlier_beds = ifelse((abs(beds - median(beds)) > 1.5 * IQR(beds)) | (guests / beds) > 2, TRUE, FALSE))
+
+length(which(airbnb_df$outlier_beds))
+```
+Dakle broj observacija koji jesu outlieri je 3651. Ove vrednosti će biti zamenjene medijanom u zavisnosti od kapaciteta smeštaja.
+
+```{r}
+median_beds_by_guests = airbnb_df %>%
+  group_by(guests) %>%
+  summarize(median_beds = median(beds, na.rm = TRUE))
+
+airbnb_df <- airbnb_df %>%
+  left_join(median_beds_by_guests, by = "guests") %>%
+  mutate(beds = ifelse(outlier_beds, round(median_beds), beds))
+
+airbnb_df = airbnb_df %>%
+  select(-median_beds)
+```
+
+Konačna raspodela:
+```{r}
+ggplot(airbnb_df, aes(x = factor(guests), y = beds, fill = factor(guests))) +
+  geom_boxplot(outlier.colour = "red", outlier.size = 3) +
+  scale_fill_viridis_d()+
+  labs(title = "Broj kreveta u odnosu na kapacitet smeštaja sa označenim outlierima",
+       x = "Kapacitet smeštaja (broj gostiju)",
+       y = "Broj kreveta") +
+  scale_x_discrete(labels = 1:16) +
+  theme_minimal() +
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
+```
+
+## Bathrooms
+
+Kolona **bathrooms** predstavlja broj kupatila koje smeštaj nudi gostima
+
+```{r}
+head(airbnb_df$bathrooms, 10)
+```
+
+Tabelarni i grafički prikaz broja smeštaja prema broju kupatila:
+
+```{r}
+xtabs(~bathrooms, data=airbnb_df)
+```
+
+```{r}
+airbnb_df %>%
+  ggplot(aes(x = bathrooms,  fill = factor(bathrooms))) +
+  geom_bar(stat = "count", color = "black") +
+  labs(title = "Broj smeštaja prema broju kupatila",
+       x = "Broj kupatila",
+       y = "Broj smeštaja") +
+  theme_minimal() +
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
+```
+
+Na grafiku se može videti raspodela broja smeštaja u odnosu na broj kupatila u svakom smeštaju. Najveći broj smeštaja (7806) poseduje jedno kupatilo, što je uobičajeno za većinu smeštaja. Primećuje se značajan pad broja smeštaja kako raste broj kupatila - smeštaji sa dva kupatila su znatno manje zastupljeni (1882), dok su smeštaji sa tri ili četiri kupatila još ređi (893 i 583). Smeštaji sa pet ili više kupatila su izuzetno retki, sa samo desetak takvih smeštaja. Takođe, primetan je broj smeštaja (426) koji uopšte nemaju kupatilo. Važno je dalje istražiti kako se kapacitet smeštaja (broj gostiju) odnosi prema broju kupatila kako bismo bolje razumeli ovu raspodelu.
+
+```{r}
+xtabs(~bathrooms+guests, data=airbnb_df)
+```
+
+```{r}
+ggplot(airbnb_df, aes(x = guests, y = bathrooms)) +
+  geom_jitter(aes(color = factor(bathrooms)), width = 0.3, height = 0.3, size = 2) +
+  scale_color_viridis_d() +
+  labs(title = "Broj kupatila u odnosu na kapacitet smeštaja",
+       x = "Kapacitet smeštaja (broj gostiju)",
+       y = "Broj kupatila") +
+  scale_x_continuous(breaks = 1:16, labels = 1:16) +
+  theme_minimal() + 
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
+```
+Većina smeštaja ima manje od 10 kupatila i može primiti maksimalno 16 gostiju. Postoje smeštaji, poput kampova ili sličnih objekata, koji nemaju kupatila ali mogu primiti goste. Međutim, primećuje se da postoje smeštaji sa znatno većim brojem kupatila nego što je uobičajeno za njihov kapacitet (na primer, 50 kupatila za 16 gostiju ili 20 kupatila za 3 gostiju). Važno je istražiti koliko je takvih neobičnih vrednosti kako bi se bolje razumele u raspodeli kupatila u smeštajnim jedinicama.
+
+```{r}
+airbnb_df <- airbnb_df %>%
+  group_by(guests) %>%
+  mutate(outlier_bathrooms = ifelse(abs(bathrooms - median(bathrooms)) > 1.5 * IQR(bathrooms), TRUE, FALSE))
+
+outliers_bathrooms_df = airbnb_df %>%
+  filter(outlier_bathrooms == TRUE)
+
+nrow(outliers_bathrooms_df)
+```
+
+Postoji 1317 observacija koje bi mogle da predstavljaju potencijalne outlier-e. 
+Grafički prikaz potencijalnih outlier-a:
+```{r}
+ggplot(airbnb_df, aes(x = guests, y = bathrooms)) +
+  geom_jitter(aes(color = factor(bathrooms)), width = 0.3, height = 0.3, size = 2) +
+  geom_point(data = outliers_bathrooms_df, aes(color = factor(bathrooms)), size = 3, shape = 20, color = "red") +
+  scale_color_viridis_d() +
+  labs(title = "Broj kupatila u odnosu na kapacitet smeštaja sa označenim outlierima",
+       x = "Kapacitet smeštaja (broj gostiju)",
+       y = "Broj kupatila") +
+  scale_x_continuous(breaks = 1:16, labels = 1:16) +
+  theme_minimal() + 
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
+```
+Grafik označava kao outliere i one smeštaje koji imaju manji broj kupatila u odnosu na njihov kapacitet, što ne mora uvek da bude ispravno. Na primer, smeštaj namenjen za 12 osoba može da nema kupatilo ako se radi o kampu ili može imati samo 1 ili 2 kupatila ako je reč o hostelu. 
+Međutim, pravim outlier-om može da se smatra onaj smeštaj koji ima značajno više kupatila u odnosu na kapacitet smeštaja, kao što je na primer smeštaj za 2 gosta koji ima 10 kupatila.
+
+```{r}
+airbnb_df = airbnb_df %>%
+  group_by(guests) %>%
+  mutate(outlier_bathrooms = ifelse(bathrooms - median(bathrooms) > 1.5 * IQR(bathrooms), TRUE, FALSE))
+
+length(which(airbnb_df$outlier_bathrooms))
+```
+Broj observacija koje se mogu smatrati pravim outlierima iznosi 915. Ove ekstremne vrednosti će biti zamenjene medijanom, ali ne za ceo skup podataka, već za medijalnu vrednost broja kupatila u skladu sa kapacitetom smeštaja. Ovo se radi iz razloga što smeštaji sa neuobičajeno visokim brojem kupatila u odnosu na svoj kapacitet mogu značajno uticati na prosečne vrednosti. Zamena ovih ekstremnih vrednosti medijanom za odgovarajući kapacitet pomaže da se očuva realnija slika podataka. Na primer, smeštaj predviđen za dvoje ljudi ne bi trebalo da ima desetak kupatila, što ovakav pristup eliminiše kao neobične podatke. 
+
+```{r}
+median_bathrooms_by_guests = airbnb_df %>%
+  group_by(guests) %>%
+  summarize(median_bathrooms = median(bathrooms, na.rm = TRUE))
+
+airbnb_df <- airbnb_df %>%
+  left_join(median_bathrooms_by_guests, by = "guests") %>%
+  mutate(bathrooms = ifelse(outlier_bathrooms, round(median_bathrooms), bathrooms))
+
+airbnb_df = airbnb_df %>%
+  select(-median_bathrooms)
+```
+
+Konačna raspodela:
+
+```{r}
+ggplot(airbnb_df, aes(x = guests, y = bathrooms)) +
+  geom_jitter(aes(color = factor(bathrooms)), width = 0.3, height = 0.3, size = 2) +
+  scale_color_viridis_d() +
+  labs(title = "Broj kupatila u odnosu na kapacitet smeštaja",
+       x = "Kapacitet smeštaja (broj gostiju)",
+       y = "Broj kupatila") +
+  scale_x_continuous(breaks = 1:16, labels = 1:16) +
+  theme_minimal() + 
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
+```
+Izvršena obrada je zamenila neobične vrednosti, pa je sad i distribucija podataka normalizovana. 
+
+## Bedrooms
+
+Kolona **bedrooms** predstavlja broj soba u smeštaju 
+
+```{r}
+head(airbnb_df$bedrooms, 10)
+```
+
+Tabelarni i grafički prikaz odnosa broja soba:
+
+```{r}
+xtabs(~bedrooms, data=airbnb_df)
+```
+
+```{r}
+airbnb_df %>%
+  ggplot(aes(x = bedrooms,  fill = factor(bedrooms))) +
+  geom_bar(stat = "count", color = "black") +
+  labs(title = "Broj smeštaja prema broju soba",
+       x = "Broj soba",
+       y = "Broj smeštaja") +
+  theme_minimal() +
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
+```
+
+Najveći broj smeštaja ima jednu (6226), dve (2335) ili tri (1386) spavaće sobe. Primetan je i broj smeštaja koji nemaju sobe (652), što može biti neobično za standardne smeštaje. Takođe, postoje smeštaji sa vrlo velikim brojem soba (30+), što može biti izuzetak.
+
+Evo i tabelarne i vizuelne raspodele broja soba u smeštajima prema kapacitetu:
+```{r}
+xtabs(~bedrooms+guests, data = airbnb_df)
+```
+
+```{r}
+ggplot(airbnb_df, aes(x = guests, y = bedrooms)) +
+  geom_jitter(aes(color = factor(bedrooms)), width = 0.3, height = 0.3, size = 2) +
+  scale_color_viridis_d() +
+  labs(title = "Broj soba u odnosu na kapacitet smeštaja",
+       x = "Kapacitet smeštaja (broj gostiju)",
+       y = "Broj soba") +
+  scale_x_continuous(breaks = 1:16, labels = 1:16) +
+  theme_minimal() + 
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
+```
+
+Najviše smeštaja bez soba može primiti 2(270) ili 4 gosta(203), što može ukazivati na to da je smeštaj studio. Smeštaji bez soba najverovatnije predstavljaju hostele.
+Većina smeštaja ima jednu sobu koja može primiti dva (3252), tri (1034) ili četiri (1295) gosta. Za određene smeštaje je znatno veći broj soba od kapaciteta smeštaja, što može ukazivati na izuzetke.
+
+Potrebno je dalje istražiti koliko takvih vrednosti čine outlier-e u skupu podataka.
+```{r}
+airbnb_df <- airbnb_df %>%
+  group_by(guests) %>%
+  mutate(outlier_bedrooms = ifelse(abs(bedrooms - median(bedrooms)) > 1.5 * IQR(bathrooms), TRUE, FALSE))
+
+outlier_bedrooms_df = airbnb_df %>%
+  filter(outlier_bedrooms == TRUE)
+
+nrow(outlier_bedrooms_df)
+```
+Postoji 2100 observacija koje su potencijalni outlieri. 
+Ove ekstremne vrednosti će biti zamenjene medijanom, ali ne za ceo skup podataka, već za medijalnu vrednost broja soba u skladu sa kapacitetom smeštaja. Ovo se radi iz razloga što smeštaji sa neuobičajeno visokim brojem soba u odnosu na svoj kapacitet mogu značajno uticati na prosečne vrednosti. Zamena ovih ekstremnih vrednosti medijanom za odgovarajući kapacitet pomaže da se očuva realnija slika podataka. Na primer, smeštaj predviđen za dvoje ljudi ne bi trebalo da ima desetak soba, što ovakav pristup eliminiše kao neobične podatke. 
+
+Grafički prikaz potencijalnih outlier-a:
+```{r}
+ggplot(airbnb_df, aes(x = guests, y = bedrooms)) +
+  geom_jitter(aes(color = factor(bedrooms)), width = 0.3, height = 0.3, size = 2) +
+  geom_point(data = outlier_bedrooms_df, aes(color = factor(bedrooms)), size = 3, shape = 20, color = "red") +
+  scale_color_viridis_d() +
+  labs(title = "Broj soba u odnosu na kapacitet smeštaja sa označenim outlierima",
+       x = "Kapacitet smeštaja (broj gostiju)",
+       y = "Broj soba") +
+  scale_x_continuous(breaks = 1:16, labels = 1:16) +
+  theme_minimal() + 
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
+```
+
+Grafik smatra i outlierima one smeštaje koji imaju veći kapacitet od broja soba, što ne mora da znači. Ako je smeštaj hostel, onda u sobi može biti smešteno i po 10+ gostiju. Međutim, outlier-om mogu da se smatraju observacije koje imaju znatno veći broj soba od kapaciteta smeštaja npr. za smeštaje za 2 gosta ima 20 soba
+
+```{r}
+airbnb_df = airbnb_df %>%
+  group_by(guests) %>%
+  mutate(outlier_bedrooms = ifelse(bedrooms - median(bedrooms) > 1.5 * IQR(bedrooms), TRUE, FALSE))
+
+length(which(airbnb_df$outlier_bedrooms))
+```
+
+Dakle broj observacija koji jesu outlieri je 411 Ove vrednosti će biti zamenjene medijanom u zavisnosti od kapaciteta smeštaja.
+```{r}
+median_bedrooms_by_guests = airbnb_df %>%
+  group_by(guests) %>%
+  summarize(median_bedrooms = median(bedrooms, na.rm = TRUE))
+
+airbnb_df <- airbnb_df %>%
+  left_join(median_bedrooms_by_guests, by = "guests") %>%
+  mutate(bedrooms = ifelse(outlier_bedrooms, round(median_bedrooms), bedrooms))
+
+airbnb_df = airbnb_df %>%
+  select(-median_bedrooms)
+```
+
+Konačna raspodela:
+
+```{r}
+ggplot(airbnb_df, aes(x = guests, y = bedrooms)) +
+  geom_jitter(aes(color = factor(bedrooms)), width = 0.3, height = 0.3, size = 2) +
+  scale_color_viridis_d() +
+  labs(title = "Broj soba u odnosu na kapacitet smeštaja",
+       x = "Kapacitet smeštaja (broj gostiju)",
+       y = "Broj soba") +
+  scale_x_continuous(breaks = 1:16, labels = 1:16) +
+  theme_minimal() + 
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
+```
+
+## Studio
+
+Studio je tip smeštaja koji se sastoji od jedne prostorije i ona predstavlja i spavaću sobu i dnevnu sobu i kuhinju. Ovakav tip smeštaja je najčešće namenjen za pojedince, parove ili tročlane/četvoročlane porodice/grupe.
+
+```{r}
+head(airbnb_df$studios, 10)
+```
+
+Studio je zapravo kategorijska promenljiva jer klasifikuje smeštaje na
+to da li jeste ili nije studio:
+
+```{r}
+airbnb_df$studios = factor(airbnb_df$studios)
+levels(airbnb_df$studios) = c("No", "Yes")
+table(airbnb_df$studios)
+```
+
+Tabelarni i vizuelni pregled:
+
+```{r}
+airbnb_df %>%
+  ggplot(aes(x=studios, fill=studios)) + 
+  geom_bar(stat = "count") +
+  geom_text(stat = "count", aes(label = ..count..),
+            vjust = -0.5, color = "black", size = 3) +
+  scale_fill_brewer(palette = "Set2") + 
+  theme_minimal() +
+  labs(title = "Broj smeštaja koji (ni)su studio",
+       x = "Studio",
+       y = "Broj smeštaja")
+```
+
+```{r}
+xtabs(~studios+guests, airbnb_df)
+```
+```{r}
+ggplot(airbnb_df, aes(x = guests, fill = studios)) +
+  geom_bar(position = "dodge", width = 0.7) +
+  scale_fill_viridis_d() +
+  labs(title = "Broj studia u odnosu na kapacitet smeštaja",
+       x = "Kapacitet smeštaja (broj gostiju)",
+       y = "Broj smeštaja") +
+  scale_x_continuous(breaks = 1:16, labels = 1:16) +
+  theme_minimal() + 
+  theme(legend.position = "bottom", plot.title = element_text(hjust = 0.5))
+
+```
+
+Sa grafika se može zaključiti da smeštaji većinski nisu tipa studio.  Najveći broj studia je prisutan za kapacitet smeštaja od 2,3 i 4 osobe što su i očekivane vrednosti za studio apartmane. Prisutne su neobične vrednosti - studio čiji je kapacitet 5+ gostiju. 
+
+Potrebno je proveriti koliko tačno ima ovakvih smeštaja?
+```{r}
+length(which(airbnb_df$guests>4 & airbnb_df$studios=="Yes"))
+```
+
+Dakle, broj studija koji imaju kapacitet 5 ili više osoba je 20. Može da se razmotri njihovo brisanje ako je njihov procentualni udeo u koloni mali:
+```{r}
+length(which(airbnb_df$guests > 4 & airbnb_df$studios == "Yes")) * 100/ length(which(airbnb_df$studios == "Yes"))
+
+length(which(airbnb_df$guests > 4 & airbnb_df$studios == "Yes")) * 100/ nrow(airbnb_df)
+```
+
+Procentualni udeo smeštaja u kojima je kapacitet veći od četvoro gostiju u odnosu na ukupan broj smeštaja koji su studio je oko 7%, dok je udeo u celokupnom skupu svega oko 0.16%. S obzirom da se radi o malom broju observacija, ove observacije će biti obrisane.
+
+```{r}
+airbnb_df = airbnb_df %>%
+  filter(!(guests > 4 & studios == "Yes"))
+```
+
+## Checkin
+
+Kolona checkin sadrži informacije o vreme prijave, odnosno vreme dolaska u smeštaj koje je domaćin naveo prilikom kreiranja oglasa
+
+```{r}
+head(airbnb_df$checkin)
+```
+Pošto je u pitanju tekstualna promenljiva, broj jedinstvenih vrednosti bi mogla da bude korisna informacija kolika je varijabilnost podataka u koloni: 
+```{r}
+length(unique(airbnb_df$checkin))
+```
+Postoje 153 moguće vrednosti za vreme prijave u smeštaj. 
+Postoji mnogo različitih termina za dolazak u smeštaj, a gostima može biti važno da znaju da li je vreme dolaska fleksibilno ili ne. Zbog toga će se uraditi klasifikacija smeštaja prema tome da li je vreme dolaska fleksibilno ili fiksno:
+
+```{r}
+airbnb_df$checkin_flexible = "No"
+airbnb_df$checkin_flexible[airbnb_df$checkin == "Flexible"] = "Yes"
+airbnb_df$checkin_flexible <- factor(airbnb_df$checkin_flexible)
+```
+
+Rezultat podele prikazan na grafiku:
+
+```{r}
+ggplot(airbnb_df, aes(x = checkin_flexible, fill = checkin_flexible)) + 
+  geom_bar() + 
+  stat_count(aes(label = ..count..), geom = "text", vjust = -0.5, size = 3) + 
+  scale_fill_brewer(palette = "Set2") + 
+  theme_minimal() +
+  labs(title = "Broj smeštaja u odnosu fleksibilnosti checkin-a",
+       x = "Fleksibilno",
+       y = "Broj smeštaja")
+```
+Većina smeštaja nema fleksibilno vreme dolaska (11601), a za svega 901 smeštaj je fleksibilno. 
+
+## Checkout
+
+Kolona checkout sadrži informacije o vremenu odjave, odnosno vremenu
+napuštanja smeštaja koje je domaćin naveo prilikom kreiranja oglasa
+
+```{r}
+head(airbnb_df$checkout)
+```
+Pošto je u pitanju tekstualna promenljiva, broj jedinstvenih vrednosti bi mogla da bude korisna informacija kolika je varijabilnost podataka u koloni: 
+```{r}
+length(unique(airbnb_df$checkout))
+```
+
+Vizuelna raspodela podataka u koloni checkout:
+
+```{r}
+airbnb_df %>%
+  arrange(checkout) %>%
+  ggplot(aes(x = checkout, fill = checkout)) + 
+  geom_bar() + 
+  stat_count(aes(label = ..count..), geom = "text", vjust = -0.5, size = 3) + 
+  theme_minimal() +
+  labs(title = "Broj smeštaja prema checkout-u",
+       x = "Checkout",
+       y = "Broj smeštaja") +
+  theme(legend.position = "bottom", 
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+```
+Većinski za smeštaje važi da je vreme napuštanja smeštaja do 11 prepodne. 
+Gostima je važno da znaju da li smeštaj je potrebno da smeštaj napuste u prepodnevnim ili u popodnevnim časovima i zato će biti odrađena
+klasifikacija smeštaja po tom parametru:
+
+```{r}
+airbnb_df$checkout_period  = "PM"
+airbnb_df$checkout_period[str_detect(airbnb_df$checkout, "am")] = "AM"
+airbnb_df$checkin_flexible <- factor(airbnb_df$checkout_period)
+```
+
+Rezultat podele prikazan na grafiku:
+
+```{r}
+ggplot(airbnb_df, aes(x = checkout_period, fill = checkout_period)) + 
+  geom_bar() + 
+  stat_count(aes(label = ..count..), geom = "text", vjust = -0.5, size = 3) + 
+  scale_fill_brewer(palette = "Set2") + 
+  theme_minimal() +
+  labs(title = "Broj smeštaja u odnosu na period napuštanja smeštaja (prepodne/popodne)",
+       x = "Period",
+       y = "Broj smeštaja")
+```
+U većini smeštaja (9541) je vreme napuštanja smeštaja u prepodnevnim časovima, dok se u 2961 smeštaja, može otići i u popodnevnim časovima.
+
+## Country
+
+Kolona country sadrži informacije o državama u kojima se smeštaj nalazi. 
+
+```{r}
+head(airbnb_df$country)
+```
+
+Tabelarni i vizuelni prikaz broja smeštaja po državama
+
+```{r}
+country_df = airbnb_df %>%
+  group_by(country) %>%
+  summarise(reservations = n(), .groups = 'drop') %>%
+  arrange(desc(reservations))
+head(country_df)
+```
+
+Najviše smeštaja se nalazi u Indiji(2733), dok je broj smeštaja u Italiji oko duplo manji u poređenju s Indijom(1175), a u Grčkoj je nešto manji nego u Italiji(881)
+
+Vizuelizacija broja smeštaja po državama:
+
+```{r}
+nrow(country_df)
+```
+
+```{r}
+country_df %>%
+  mutate(panel = cut(row_number(), breaks = 4, labels = c("Panel 1", "Panel 2", "Panel 3", "Panel 4"))) %>%
+  ggplot(aes(x = country, y = reservations, fill = country)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Broj rezervacija po državi",
+       x = "Država",
+       y = "Broj rezervacija") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 3)) +
+  facet_wrap(~ panel, scales = "free") +
+  theme(legend.position = "none")
+```
+
+## House_rules
+
+Kolona house_rules sadrži pravila ponašanja koja gosti smeštaja moraju da poštuju. Iako sama po sebi ne može direktno doprineti predikciji cene smeštaja, određeni izdvojeni podaci iz ove kolone mogu biti korisni za analizu i predviđanje.
+
+Kratak pregled kolone:
+```{r}
+head(airbnb_df$house_rules, n=15)
+```
+Ova kolona sadrži informacije o tome: da li su u smeštaju dozvoljeni
+kućni ljubimci, pušenje, žurke, da li je pogodno za bebe...
+
+###Pet friendly
+
+Da li smeštaj dozvoljava kućne ljubimce?
+
+```{r}
+airbnb_df$pet_friendly[str_detect(airbnb_df$house_rules, "Pets are allowed")]="Yes"
+airbnb_df$pet_friendly[str_detect(airbnb_df$house_rules, "No pets")]="No"
+```
+
+Definisana je nova kolona koja je predstavljena vizuelno na grafiku
+ispod:
+
+```{r}
+ggplot(airbnb_df, aes(x = pet_friendly, fill = pet_friendly)) + 
+  geom_bar() + 
+  stat_count(aes(label = ..count..), geom = "text", vjust = -0.5, size = 3) + 
+  theme_minimal() +
+  labs(title = "Broj smeštaja na osnovu dozvole za kućne ljubimce",
+       x = "Dozvoljeni kućni ljubimci",
+       y = "Broj smeštaja") + 
+  scale_fill_manual(values = c("aquamarine", "darkgoldenrod1"))
+```
+Na osnovu grafika se može reći da je veći broj smeštaja koji ne dozvoljava kućne ljubimce (6447), dok su u 4657 dozvoljeni. Za 1398 smeštaja ne postoji informacija o tome da li dozvoljavaju kućne ljubimce. Ove vrednosti mogu da se popune na osnovu države u kojoj se smeštaj nalazi jer kultura čuvanja ljubimaca zavisi od države do države. 
+
+Grafički i tabelarni pregled broja smeštaja na osnovu toga da li dopušta ljubimce ili ne i u kojoj državi se nalazi: 
+
+```{r}
+country_pets_df <- airbnb_df %>%
+  group_by(country, pet_friendly) %>%
+  summarise(count = n(), .groups = 'drop') %>%
+  arrange(country, desc(pet_friendly))
+
+head(country_pets_df)
+```
+
+Definisanje pomoćnih promenljivih koje su potrebne za iscrtavanje grafika:
+
+```{r}
+page_size = 4
+num_countries = n_distinct(country_pets_df$country)
+total_pages = ceiling(num_countries / page_size)
+countries = unique(country_pets_df$country)
+```
+
+Grafici: 
+```{r}
+create_and_show_plot <- function(page_data, page_number) {
+  p = ggplot(page_data, aes(x = country, y = count, fill = pet_friendly)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    geom_text(aes(label = count), position = position_dodge(width = 0.9), vjust = -0.5, size = 3) +
+    labs(title = paste("Grafik", page_number, ": Broj smeštaja po državi i  dozvoljavanju kućnih ljubimaca"),
+         x = "Država",
+         y = "Broj smeštaja",
+         fill = "Dozvoljeni kućni ljubimci") +
+    theme_minimal() +
+    scale_fill_manual(values = c("aquamarine", "darkgoldenrod1")) +
+    theme(legend.position = "bottom")
+  
+  print(p)
+}
+
+for (i in 1:total_pages) {
+  start_index = (i - 1) * page_size + 1
+  end_index = min(i * page_size, num_countries)
+  current_countries = countries[start_index:end_index]
+  page_data = country_pets_df %>% 
+    filter(country %in% current_countries)
+  
+  create_and_show_plot(page_data, i)
+}
+```
+
+Iako na globalnom nivou, više smeštaja ne dozvoljava kućne ljubimce u smeštaju, u određenim državama je ipak dominantnije da dozvoljavaju. Pošto je ovo veliki skup podataka, interesuje nas da li postoje države gde nema nikakve informacije o tome da li dozvoljava kućne ljubimce i da li u državi većinski dominira dozvoljavanje kućnih ljubimaca u smeštaju ili ne: 
+
+```{r}
+country_pets_max_df <- country_pets_df %>%
+  arrange(country, desc(count), desc(pet_friendly)) %>%
+  group_by(country) %>%
+  slice_max(order_by = count, n = 1, with_ties = FALSE) %>%
+  ungroup()
+head(country_pets_max_df)
+```
+
+```{r}
+country_pets_max_df[is.na(country_pets_max_df$pet_friendly), ]
+```
+
+Postoji nekoliko država za koje uopšte nema podatak o tome da li dozvoljavaju ili ne dozvoljavaju kućne ljubimce. S obzirom na domensko znanje, ali i prednost Not Pet Friendly smeštaja u odnosu na Pet Friendly na globalno nivou, za ove države će biti stavljena vrednost "No".
+
+```{r}
+country_pets_max_df$pet_friendly[is.na(country_pets_max_df$pet_friendly)] = "No"
+(sum(is.na(country_pets_max_df$pet_friendly)))
+```
+
+Popunjavanje NA vrednosti u glavnom skupu podataka:
+
+```{r}
+na_indices <- which(is.na(airbnb_df$pet_friendly))
+airbnb_df$pet_friendly[na_indices] = sapply(airbnb_df$country[na_indices], function(x) {
+  value=country_pets_max_df$pet_friendly[country_pets_max_df$country == x]
+  return(value[1])
+})
+sum(is.na(airbnb_df$pet_friendly))
+```
+
+###Smoking
+
+Gostima koji su pušači je bitno da li je u smeštaju u kom borave
+dozvoljeno pušenje ili ne.
+
+```{r}
+airbnb_df$smoking_allowed[str_detect(airbnb_df$house_rules, "Smoking is allowed")]="Yes"
+airbnb_df$smoking_allowed[str_detect(airbnb_df$house_rules, "No smoking")]="No"
+```
+
+```{r}
+ggplot(airbnb_df, aes(x = smoking_allowed, fill = smoking_allowed)) + 
+  geom_bar() + 
+  stat_count(aes(label = ..count..), geom = "text", vjust = -0.5, size = 3) + 
+  theme_minimal() +
+  labs(title = "Broj smeštaja u odnosu na (ne)dozvoljeno pušenje",
+       x = "Dozvoljeno pušenje",
+       y = "Broj smeštaja") + 
+  scale_fill_manual(values = c("aquamarine", "darkgoldenrod1"))
+```
+U većini smeštaja nije dozvoljeno pušenje (6788), u 4078 jeste, dok za 1636 nema podatka. Isto kao i za pet_friendly, biće doneta odluka na osnovu toga da li više smeštaja u toj državi dozvoljava ili ne dozvoljava. 
+
+Tabelarni i vizuelni pregled po državama:
+
+```{r}
+country_smoking_df <- airbnb_df %>%
+  group_by(country, smoking_allowed) %>%
+  summarise(count = n(), .groups = 'drop') %>%
+  arrange(country, desc(smoking_allowed))
+
+country_smoking_df
+```
+
+```{r}
+create_and_show_plot <- function(page_data, page_number) {
+  p = ggplot(page_data, aes(x = country, y = count, fill = smoking_allowed)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    geom_text(aes(label = count), position = position_dodge(width = 0.9), vjust = -0.5, size = 3) +
+    labs(title = paste("Grafik ", page_number, ": Broj smeštaja u odnosu na državu (ne)dozvoljeno pušenje"),
+         x = "Država",
+         y = "Broj smeštaja",
+         fill = "Dozvoljeno pušenje") +
+    theme_minimal() +
+    scale_fill_manual(values = c("aquamarine", "darkgoldenrod1")) +
+    theme(legend.position = "bottom")
+  print(p)
+}
+
+for (i in 1:total_pages) {
+  start_index = (i - 1) * page_size + 1
+  end_index = min(i * page_size, num_countries)
+  current_countries = countries[start_index:end_index]
+  page_data = country_smoking_df %>% 
+    filter(country %in% current_countries)
+  
+  create_and_show_plot(page_data, i)
+}
+```
+
+Proverava se da li ima neka država za koju uopšte nema vrednost i koja
+je najučestalija vrednost za svaku državu.
+
+```{r}
+country_smoking_max_df = country_smoking_df %>%
+  arrange(country, desc(count), desc(smoking_allowed)) %>%
+  group_by(country) %>%
+  slice_max(order_by = count, with_ties = FALSE)
+  
+country_smoking_max_df
+```
+
+```{r}
+country_smoking_max_df[is.na(country_smoking_max_df$smoking_allowed), ]
+```
+Postoji nekoliko država koje imaju NA vrednosti. One će biti popunjene vrednošću koja je dominantna na globalnom nivou. Isto kao i za pet friendly, NA vrednosti se popunjavaju sa No.
+
+```{r}
+country_smoking_max_df$smoking_allowed[is.na(country_smoking_max_df$smoking_allowed)] = "No"
+(sum(is.na(country_smoking_max_df$smoking_allowed)))
+```
+
+Popunjavanje vrednosti u glavnom skupu
+
+```{r}
+na_indices <- which(is.na(airbnb_df$smoking_allowed))
+airbnb_df$smoking_allowed[na_indices] = sapply(airbnb_df$country[na_indices], function(x) {
+  value=country_smoking_max_df$smoking_allowed[country_smoking_max_df$country == x]
+  return(value[1])
+})
+sum(is.na(airbnb_df$smoking_allowed))
+```
+
+###Suitible for infants
+
+Ova kolona treba da pruži informacije da li je smeštaj pogodan za bebe
+ili ne. Potrebno je da se koloni suitibile_for_infants dodele vrednosti na osnovu kolone hourse_rules. Vlasnici smeštaja uglavnom naglašavaju ako u smeštaju nije pogodno za bebe, tako da će se podrazumevati da je pogodno za bebe, osim ako nije drugačije rečeno.
+
+```{r}
+airbnb_df$suitibile_for_infants = "Yes"
+airbnb_df$suitibile_for_infants[str_detect(airbnb_df$house_rules, "Not suitable for infants")]="No"
+```
+
+```{r}
+ggplot(airbnb_df, aes(x = suitibile_for_infants, fill = suitibile_for_infants)) + 
+  geom_bar() + 
+  stat_count(aes(label = ..count..), geom = "text", vjust = -0.5, size = 3) + 
+  theme_minimal() +
+  labs(title = "Broj smeštaja u odnosu na pogodno za bebe",
+       x = "Pogodno za bebe",
+       y = "Broj smeštaja") + 
+  scale_fill_manual(values = c("aquamarine", "darkgoldenrod1"))
+```
+Većina smeštaja (11384) jeste pogodno za bebe, dok 1118 nije. 
+
+Pregled raspodele vrednosti raspodeljene po državama tabelarno i
+vizuelno:
+
+```{r}
+country_infants_df <- airbnb_df %>%
+  group_by(country, suitibile_for_infants) %>%
+  summarise(count = n(), .groups = 'drop') %>%
+  arrange(country, desc(suitibile_for_infants))
+
+country_infants_df
+```
+
+```{r}
+create_and_show_plot <- function(page_data, page_number) {
+  p = ggplot(page_data, aes(x = country, y = count, fill = suitibile_for_infants)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    geom_text(aes(label = count), position = position_dodge(width = 0.9), vjust = -0.5, size = 3) +
+    labs(title = "Broj smeštaja u odnosu na pogodno za bebe",
+         x = "Pogodno za bebe",
+         y = "Broj smeštaja", 
+         fill = "Suitible for infants") +
+    theme_minimal() +
+    scale_fill_manual(values = c("aquamarine", "darkgoldenrod1")) +
+    theme(legend.position = "bottom")
+  
+  print(p)
+}
+
+for (i in 1:total_pages) {
+  start_index = (i - 1) * page_size + 1
+  end_index = min(i * page_size, num_countries)
+  current_countries = countries[start_index:end_index]
+  page_data = country_infants_df %>% 
+    filter(country %in% current_countries)
+  
+  create_and_show_plot(page_data, i)
+}
+```
+
+Sada sve nove kolone koje su kreirane mogu da se prebace u kategorijske promenljive
+
+```{r}
+airbnb_df$pet_friendly = factor(airbnb_df$pet_friendly)
+airbnb_df$smoking_allowed = factor(airbnb_df$smoking_allowed)
+airbnb_df$suitibile_for_infants = factor(airbnb_df$suitibile_for_infants)
+
+airbnb_df$checkin_flexible = factor(airbnb_df$checkin_flexible)
+airbnb_df$checkout_period = factor(airbnb_df$checkout_period)
+```
+
+Kolone tipa int treba prebaciti u numeric kako ne bi remetile rad modela: 
+
+```{r}
+int_columns = sapply(airbnb_df, is.integer)
+airbnb_df[int_columns] = lapply(airbnb_df[int_columns], as.numeric)
+```
+
+##Price 
+Cena je promenljiva koju model treba da potvrdi. Njena vrednost je u lokalnoj valuti što bi moglo da ima jako loš uticaj na model. Zato će sve cene biti konvertovane u jednu valutu odnosno u dinare kako bi se utvrdila distribucija podataka. 
+
+Naredna sekcija koda učitava kod valute i dodaje je svakoj observaciji:
+```{r}
+countries_data <- codelist
+zemlje_valute <- countries_data %>%
+select(country.name.en, currency)  
+airbnb_df$currency_code <- NA 
+airbnb_df$country=trimws(airbnb_df$country)
+ 
+for (i in 1:nrow(airbnb_df)) {
+  country <- airbnb_df$country[i]
+  match_index <- which(zemlje_valute$country.name.en == country)
+  if (length(match_index) > 0) {
+    airbnb_df$currency_code[i] <- zemlje_valute$currency[match_index]
+  }
+}
+```
+
+U csv fajlu se nalaze informacije o trenutnom kursu valute i svakoj observaciji će pridružiti kurs.
+
+```{r}
+exchange_rates_df <- read.csv('currency_exchange_rates.csv')
+airbnb_with_rates <- merge(airbnb_df, exchange_rates_df, by.x = "currency_code", by.y = "Currency", all.x = TRUE)
+head(airbnb_with_rates)
+```
+
+Moguće je da za neke observacije nema kurs. Potrebno je da se proveri koliki je broj takvih observacija:
+```{r}
+sum(is.na(airbnb_with_rates$Exchange_Rate_RSD))
+```
+Postoje države za koje ne postoji informacija o kursu. Koje su države u pitanju?
+
+```{r}
+unique(airbnb_with_rates$country[is.na(airbnb_with_rates$Exchange_Rate_RSD)])
+```
+Države nisu česte turističke destinacije, tako da možemo filtrirati podatke i ukloniti ove observacije
+
+```{r}
+airbnb_with_rates = airbnb_with_rates %>%
+  filter(!is.na(Exchange_Rate_RSD))
+```
+
+Pošto više nema nedostajućih vrednosti, sve lokalne cene će biti prevedene u dinare na osnovu kursa: 
+
+```{r}
+airbnb_with_rates$priceRSD = airbnb_with_rates$price * airbnb_with_rates$Exchange_Rate_RSD
+```
+
+Kakva je distribucija podataka?
+
+```{r}
+summary(airbnb_with_rates$priceRSD)
+```
+
+```{r}
+airbnb_with_rates %>%
+  ggplot(aes(x = "", y = priceRSD)) +
+  geom_boxplot(fill = "aquamarine", color = "black", outlier.colour = "darkgoldenrod1") +
+  stat_summary(fun.data = "mean_cl_normal", geom = "errorbar") +
+  theme_minimal() + 
+  labs(title = "Distribucija kolone priceRSD", y = "Cena", x="") +
+  theme(legend.position = "bottom", plot.title=element_text(hjust = 0.5))
+```
+Srednja vrednost može imati jako veliku vrednost ako u skupu postoje ekstremne vrednosti jer znatno mogu promeniti ovu meru. S druge strane, medijana predstavlja srednju vrednost kad su podaci sortirani po veličini. Ona pruža bolji uvid u centralnu tendenciju skupa jer je manje podložna uticaju ekstremnih vrednosti. Dakle, dok srednja vrednost može biti "povučena" ka ekstremnim vrednostima, medijana ostaje stabilna i daje realniju sliku o tome gde se većina podataka nalazi. Outlier-i mogu povući liniju regresije ili uticati na procenu
+koeficijenata, što može dovesti do nepreciznih predviđanja.
+
+Pošto je skup podataka raznovrsan, uključuje veliki broj država, a i
+standard po državama se razlikuje - u nekim je jeftinije, u nekim
+skuplje. Iz tog razloga odradićemo analizu podskupa podatka tj. uzorka.
+Biće uzet uzorak smeštaja u Indiji pošto je najveći broj observacija
+upravo odatle.
+
+# Obuka i predikcija na uzorku
+
+```{r}
+india_df = airbnb_with_rates[airbnb_with_rates$country == "India", ]
+head(india_df)
+```
+
+Kakva je distribucija cene smeštaja na izdvojenom podskupu (uzorku)? Da li je bolja nego na celokupnom skupu podataka?
+
+```{r}
+summary(india_df$price)
+```
+
+```{r}
+ggplot(india_df, aes(x = price)) +
+  geom_histogram(binwidth = 1000, fill = "aquamarine1", color = "black", alpha = 0.7) +
+  labs(title = "Distribucija cene smeštaja u Indiji",
+       x = "Cena",
+       y = "Broj smeštaja") +
+  theme_minimal() +
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+india_df %>%
+  ggplot(aes(x = "", y = price)) +
+  geom_boxplot(fill = "aquamarine", color = "black", outlier.colour = "darkgoldenrod1") +
+  stat_summary(fun.data = "mean_cl_normal", geom = "errorbar") +
+  theme_minimal() + 
+  labs(title = "Distribucija cene smeštaja u Indiji", y = "Cena") +
+  theme(legend.position = "bottom", plot.title=element_text(hjust = 0.5))
+```
+
+Na osnovu grafika može da se utvrdi značajna varijabilnost u koloni
+price. Minimum je svega 393 ruplji, dok je maksimalna vrednost čak 182 588 rupalja. Cena za 3/4 smeštaja je manja od 7988, a vrednosti za medijanu i srednju vrednost su 3994 i 7566 respektivno. S obzirom na znatnu varijabilnost u koloni cena (prisutne su vrlo visoke ekstremne vrednosti koje značajno utiču na srednju vrednost), neophodna je primena transformacije podataka kako bi se postigao jasniji pregled distribucije i olakšala interpretacija.
+
+Biće odrađena standardizacija podataka upotrebom logaritamskog
+skaliranja:
+
+```{r}
+india_df = india_df %>%
+  mutate(price_log = log(price))
+summary(india_df$price_log)
+```
+
+## Modeli
+
+Pre nego što se započne pravljenje modela, potrebno je da se eliminišu
+kolone koje zasigurno nemaju udeo u predikciji cene smeštaja. Kolone
+koje su potrebne za dalji rad su:
+
+```{r}
+india_df = india_df %>%
+   select(c(rating, address, price, bathrooms, beds, guests, toiles,
+            bedrooms, studios, checkin_flexible, checkout_period, 
+            standard_rating, pet_friendly, smoking_allowed,
+            suitibile_for_infants, rating_cat, price_log))
+```
+
+Da bi se izabrali pravi prediktori, potrebno je pogledati osnovne
+statističke vrednosti numeričkih kolona:
+
+```{r}
+india_df %>%
+  select(where(is.numeric)) %>%
+  summary()
+```
+Postoje NA vrednosti u koloni rating. Biće popunjene medijalnom prosečnom ocenom za taj region jer se na taj način osigurava da ocene reflektuju lokalne trendove. 
+U koloni address se nalaze informacije o lokaciji smeštaja, pa tako i o regionu.
+
+Dodavanje kolone region:
+```{r}
+india_df$region = sapply(strsplit(india_df$address, ","), function(x) trimws(x[2]))
+sum(is.na(india_df$region))
+```
+
+Samo 13 observacija nema region pa će biti uklonjene iz skupa
+
+```{r}
+india_df = india_df %>%
+  filter(!is.na(region))
+sum(is.na(india_df$region))
+```
+
+```{r}
+india_df <- india_df %>%
+  group_by(region) %>%
+  mutate(rating = ifelse(is.na(rating), median(rating, na.rm = TRUE), rating)) %>%
+  ungroup()
+
+```
+
+```{r}
+sum(is.na(india_df$rating))
+```
+Ostalo je 17 observacija koje nisu popunjene jer su za te regione svi smeštaji novi, tako da će ti podaci biti popunjeni medijanom celokupnog skupa Indije.
+
+```{r}
+mean_rating = mean(india_df$rating, na.rm = TRUE)
+india_df$rating[is.na(india_df$rating)] = mean_rating
+```
+
+Treba opet da se preračuna standardizovani rejting i podela po
+kategorijama. Dodate su nove vrednosti.
+
+```{r}
+avg_rating = mean(india_df$rating, na.rm = TRUE)
+india_df$standard_rating = india_df$rating - avg_rating
+summary(india_df$standard_rating)
+```
+
+```{r}
+breaks = c(Inf, -0.3367, -0.0467, 0.0133,  0.0000,  0.0433,  0.1633)
+labels = c("Poor", "Fair", "Good", "Very Good", "Excellent", "Perfect")
+india_df$rating_cat = cut(india_df$standard_rating, breaks = breaks, labels = labels)
+india_df$rating_cat = factor(india_df$rating_cat, levels = labels)
+summary(india_df$rating_cat)
+```
+
+Grafički prikaz:
+
+```{r}
+ggplot(india_df, aes(x = rating_cat, fill = rating_cat)) +
+  geom_bar(stat = "count") +
+  geom_text(stat = "count", aes(label = ..count..),
+            vjust = -0.5, color = "black", size = 3) +
+  labs(title = "Kategorije smeštaja na osnovu centriranih podataka kolone rating",
+       x = "Kategorija", 
+       y = "Broj smeštaja") + 
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set2")
+```
+
+Da li bi adresa mogla da se koristi kao prediktor? Koliki je broj jedinstvenih vrednosti? 
+```{r}
+length(unique(india_df$address))
+```
+Adresa ima 740 jedinstvenih adresa, što je veliki broj vrednosti na oko 2700 observacija. 
+
+Pre nego što se krene na obučavanje modela, potrebno je da se iz skupa kolona ukloni kolona price (umesto nje se gleda price_log) i da se odradi prevođenje regiona u faktor (kao string promenljive mogu da ugroze rad modela)
+```{r}
+india_df = india_df %>%
+  select(-address)
+```
+
+```{r}
+india_df$region = as.numeric(as.factor(india_df$region))
+india_df$rating_cat = as.numeric(india_df$rating_cat)
+india_df = india_df %>%
+  select(-price)
+colnames(india_df)
+```
+
+Za obučavanje modela, potrebno je da se skup podeli na trening i test
+skup. Skup je podeljen u odnosu 80:20. 
+
+```{r}
+set.seed(123)
+train_index = sample(1:nrow(india_df), 0.8 * nrow(india_df))
+train_data = india_df[train_index, ]
+test_data = india_df[-train_index, ]
+```
+
+Kakve su distribucije i veze između prediktora? 
+
+```{r}
+train_data %>%
+  select(where(is.numeric)) %>%
+  pairs()
+```
+Prikazano je dosta grafika što ukazuje na kompleksnost međusobnih veza između promenljivih u skupu. Ovo može otežati identifikaciju jasnih uzoraka ili korelacija na prvi pogled. Bolji uvid nudi matrica korelacije: 
+
+Matrica korelacije:
+```{r}
+correlation_matrix = train_data %>%
+  select(where(is.numeric)) %>%
+  cor()
+correlation_matrix
+corrplot(correlation_matrix, method = "circle")
+```
+
+Na osnovu korelacione matrice može da se vidi da price_log ima umerenu pozitivnu korelaciju sa promenljivama bathrooms, beds, guests i bedrooms. 
+
+Kakva je distribucija ovih kolona vizuelno?
+
+Odnos cene i kupatila
+```{r}
+ggplot(train_data, aes(x = factor(bathrooms), y = price_log)) +
+  geom_boxplot(outlier.colour = "red", outlier.shape = 16, outlier.size = 2) +
+  labs(x = "Broj kupatila", 
+       y = "Logaritamski transformisana cena", 
+       title = "Log. cena u odnosu na broj kupatila sa outlier-ima") +
+  theme_minimal()
+```
+Postoje određeni outlieri na dijagramu, međutim njihov broj je mali, osim za smeštaje koji imaju jedno kupatilo. Ovi outlieri značajno odstupaju od ostalih podataka i mogu negativno da utiču na predikcije modela. Međutim, cene smeštaja sa jednim kupatilom ispod donje granice interkvartilnog raspona (IQR) možda predstavljaju realne cene, obzirom na raznolike tipove smeštaja dostupne za solo putnike.
+
+```{r}
+Q1 = quantile(train_data$price_log[train_data$bathrooms == 1], 0.25)
+Q3 = quantile(train_data$price_log[train_data$bathrooms == 1], 0.75)
+
+IQR = Q3 - Q1
+upper_bound = Q3 + 1.5 * IQR
+train_data = train_data[!(train_data$bathrooms == 1 & train_data$price_log > upper_bound), ]
+```
+
+```{r}
+ggplot(train_data, aes(x = factor(bathrooms), y = price_log)) +
+  geom_boxplot(outlier.colour = "red", outlier.shape = 16, outlier.size = 2) +
+  labs(x = "Broj kupatila", 
+       y = "Logaritamski transformisana cena", 
+       title = "Log. cena u odnosu na broj kupatila sa uklonjenim problematičnim outlier-ima") +
+  theme_minimal()
+```
+
+Odnos cene i kapaciteta smeštaja
+```{r}
+ggplot(train_data, aes(x = factor(guests), y = price_log)) +
+  geom_boxplot(outlier.colour = "red", outlier.shape = 16, outlier.size = 2) +
+  labs(x = "Kapacitet smeštaja", 
+       y = "Logaritamski transformisana cena", 
+       title = "Log. cena u odnosu na kapacitet smeštaja sa outlier-ima") +
+  theme_minimal()
+```
+Postoje određeni outlieri na dijagramu, međutim njihov broj je mali i ne bi trebalo da značajno utiču na predikciju modela. 
+
+
+Odnos cene i spavaćih soba
+```{r}
+ggplot(train_data, aes(x = factor(bedrooms), y = price_log)) +
+  geom_boxplot(outlier.colour = "red", outlier.shape = 16, outlier.size = 2) +
+  labs(x = "Broj spavaćih soba", 
+       y = "Logaritamski transformisana cena", 
+       title = "Log. cena u odnosu na broj spavaćih soba sa outlier-ima") +
+  theme_minimal()
+```
+Kao i kod kapaciteta smeštaja, broj outlier-a je zanemarljiv. 
+
+```{r}
+ggplot(train_data, aes(x = factor(beds), y = price_log)) +
+  geom_boxplot(outlier.colour = "red", outlier.shape = 16, outlier.size = 2) +
+  labs(x = "Broj kreveta", 
+       y = "Logaritamski transformisana cena", 
+       title = "Log. cena u odnosu na broj kreveta sa outlier-ima") +
+  theme_minimal()
+```
+Outleri su kod smeštaja koji nude samo jedan krevet jer su vrednosti outlier-a izuzetno velike (ovo su logaritamske vrednosti cene smeštaja i vrednosti su 10 i 12). Ove visoke vrednosti ukazuju na izuzetno skupe smeštaje za ovu kategoriju i mogu da imaju značajan negativan uticaj na model. 
+```{r}
+Q1 = quantile(train_data$price_log[train_data$beds == 1], 0.25)
+Q3 = quantile(train_data$price_log[train_data$beds == 1], 0.75)
+
+IQR = Q3 - Q1
+upper_bound = Q3 + 1.5 * IQR
+train_data = train_data[!(train_data$beds == 1 & train_data$price_log > upper_bound), ]
+```
+
+```{r}
+ggplot(train_data, aes(x = factor(beds), y = price_log)) +
+  geom_boxplot(outlier.colour = "red", outlier.shape = 16, outlier.size = 2) +
+  labs(x = "Broj kreveta", 
+       y = "Logaritamski transformisana cena", 
+       title = "Log. cena u odnosu na broj kreveta sa uklonjenim problematičnim outlier-ima") +
+  theme_minimal()
+```
+
+
+## Linearna regresija
+
+Model zasnovan na numeričkim promenljivama koji imaju zadovoljavajuću
+linearnu zavisnost sa promenljivom koja se predviđa
+
+```{r}
+model_1 = lm(price_log ~ bathrooms + beds + guests + bedrooms, data = train_data)
+summary(model_1)
+plot(model_1)
+```
+
+Mera Multiple R-squared je 0.2397, što znači da 23.97% varijabilnosti u zavisnoj promenljivoj (price_log) može biti objašnjeno nezavisnim promenljivama (bathrooms, beds, guests, bedrooms) koje su uključene u model. Ovo je niska vrednost, što znači da model ne objašnjava dovoljno dobro varijabilnost cena na osnovu nezavisnih promenljiva. 
+
+Adjusted R-squared iznosi 0.2383, što je blizu Multiple R-kvadratu. Ova metrika uzima u obzir broj nezavisnih promenljivih u modelu i sugeriše da dodavanje više nezavisnih promenljivih možda ne bi poboljšalo objašnjenje varijabilnosti cene.
+
+F-statistic modela iznosi 169.4 sa p-vrednošću manjom od 2.2e-16, što ukazuje da je model statistički značajan. Ovo znači da postoji značajan efekat nezavisnih promenljivih na zavisnu promenljivu.
+
+RSE iznosi 0.8317 i predstavlja prosečnu grešku u predikciji cena koju model pravi. Što je manja vrednost, to je bolja preciznost modela u predviđanju cena smeštaja.
+
+Koeficijenti za nezavisne promenljive (bathrooms, beds, guests) imaju statistički značajne t-vrednosti i p-vrednosti, osim za promenljivu bedrooms koja nije značajna. To znači da postoji statistički značajan uticaj broja kupatila (bathrooms), kreveta (beds) i kapaciteta smeštaja (guests) na cenu smeštaja.
+
+Na osnovu grafika Residuals vs Leverage mogu da se uoče tri outlier-a koja utiču na model. Kakve bi performanse imao model sa uklonjenim podacima? 
+```{r}
+cook_dist = cooks.distance(model_1)
+cook_thresh = 4 / (nrow(train_data) - length(coefficients(model_1)) - 1)
+high_cook_points = cook_dist > cook_thresh
+train_data_clean = train_data[!high_cook_points, ]
+
+model_1 = lm(price_log ~ bathrooms + beds + guests + bedrooms, data=train_data_clean)
+summary(model_1)
+plot(model_1)
+```
+
+Prethodne mere modela: 
+Residual standard error: 0.8317
+Multiple R-squared:  0.2397
+Adjusted R-squared:  0.2383 
+F-statistic: 169.4
+
+Nove mere modela: 
+Residual standard error: 0.6916
+Multiple R-squared:  0.3909
+Adjusted R-squared:  0.3897 
+F-statistic: 320.8
+
+Uklanjanje outlier-a primenom Kukove udaljenosti je značajno uticalo na performanse modela linearne regresije. I na ostale modele će biti primenjivan očišćeni skup podataka. 
+
+Kakav bi model bio kada bi se sve nezavisne promenljive gledale?
+```{r}
+model_2 = lm(price_log ~ ., data = train_data_clean)
+summary(model_2)
+plot(model_2)
+```
+
+
+Prethodne mere modela: 
+Residual standard error: 0.6916
+Multiple R-squared:  0.3909
+Adjusted R-squared:  0.3897 
+F-statistic: 320.8
+
+Nove mere modela: 
+Residual standard error: 0.68
+Multiple R-squared:  0.4138
+Adjusted R-squared:  0.4099
+F-statistic:   108
+
+Iako su metrike R2 i adjR2 veće u odnosu na prethodni model, F-statistika je značajno pala. 
+
+S obzirom da je u predikciju uključen veliki broj prediktora, a samim tim postoji i veliki broj potencijalnih kombinacija za izbor prediktora, biće korišćena tehnika izbora najboljeg podskupa prediktora. Zbog multikolinearnosti ćemo praviti novi podskup kolona.
+
+```{r}
+train_subset = train_data_clean %>%
+  select(where(is.numeric))%>%
+  select(-c("standard_rating", "rating_cat"))
+
+vif_values <- vif(lm(price_log ~ ., data = train_subset))
+vif_values
+```
+Kolone bathrooms, beds, guests i bedrooms očekivano imaju visoke vrednosti korelacije. Pošto kolona bedrooms ima najveću vrednost, biće uklonjena iz skupa prediktora koji se koriste za tehniku izbora najboljeg podskupa prediktora. 
+```{r}
+regfit.full = regsubsets(price_log ~., 
+                         data=train_subset)
+regfit.summary= summary(regfit.full)
+
+num_predictors = which.max(regfit.summary$adjr2)
+coef(regfit.full, num_predictors)
+```
+Tehnika izbora najboljeg podskupa prediktora smatra da najbolji podskup prediktora čine: rating, bathrooms, beds, guests i region 
+```{r}
+model_3 = lm(price_log~rating + bathrooms + beds + guests + region, 
+              data = train_data_clean)
+summary(model_3)
+plot(model_3)
+```
+
+
+Prethodne mere modela: 
+Residual standard error: 0.6916
+Multiple R-squared:  0.3909
+Adjusted R-squared:  0.3897 
+F-statistic: 320.8
+
+Nove mere modela: 
+Residual standard error: 0.6849
+Multiple R-squared:  0.4028,	
+Adjusted R-squared:  0.4013 
+F-statistic: 269.6
+
+I ovaj model ima malo veće vrednosti za mere Multiple R-squared i Adjusted R-squared, ali manju F-statistiku od prethodnog modela. 
+
+Ako se povećava broj gostiju, trebalo bi da se povećava i broj kreveta, odnosno između ova dva atributa bi trebalo da ima sinergijski efekat. 
+```{r}
+model_4 = lm(price_log~bathrooms + beds + guests +
+             guests*beds + guests*bathrooms, 
+              data = train_data_clean)
+summary(model_4)
+plot(model_4)
+```
+Ni efekat sinergije nije uticao na povećanje performansi modela.
+Postoje četiri linearna modela i potrebno je da se odabere jedan model za predikciju na testnom skupu
+
+```{r}
+anova(model_1, model_2, model_3, model_4)
+```
+Diskusija: 
+Na osnovu ANOVA analize, model 2 i model 3 su statistički značajno bolji od modela 1 u objašnjavanju varijabilnosti cene smeštaja. Model 2 uključuje veći broj prediktora, dok se model 3 fokusira na osnovne karakteristike smeštaja i dodatno ima uticaj regiona.
+
+```{r}
+prediction_lr_2 = predict(model_2, newdata = test_data)
+prediction_lr_3 = predict(model_3, newdata = test_data)
+```
+
+```{r}
+rmse_model2 = RMSE(prediction_lr_2, test_data$price_log)
+r2_model2 = R2(prediction_lr_2, test_data$price_log)
+
+rmse_model3 = RMSE(prediction_lr_3, test_data$price_log)
+r2_model3 = R2(prediction_lr_3, test_data$price_log)
+
+cat("Model 2 - RMSE:", rmse_model2, "\n")
+cat("Model 2 - R^2:", r2_model2, "\n\n")
+cat("Model 4 - RMSE:", rmse_model3, "\n")
+cat("Model 4 - R^2:", r2_model3, "\n")
+
+```
+Mere modela su izuzetno loše - mnogo su niže na testnom skupu u odnosu na trening skup što može da pokazuje na overfitting modela, odnosno da je došlo do njihovog preprilagođavanja podacima. Doprinos tome je imao deo obrade kada su uklonjene observacije sa visokom polugom kod prvog modela. Iako minimalno, u ovoj situaciji bolje rezultate metrika ima model 2 jer je RMSE manja, a Adjusted R2 veća. 
+
+Iscrtavanje grafika za model 2
+```{r}
+data = data.frame(actual = test_data$price_log, 
+                  predicted = prediction_lr_2)
+
+ggplot(data, aes(x = actual, y = predicted)) +
+  geom_point(color = "darkorange", alpha = 0.5) +
+  geom_abline(intercept = 0, slope = 1,  color = "red", linewidth = 1) + labs(title = "Stvarne vs. Predviđene vrednosti (Linearna regresija)",
+         x = "Stvarne vrednosti",
+         y = "Predviđene vrednosti") +
+  theme_minimal()
+```
+
+Konstatovano je da su prva dva modela overfitovala podatke, odnosno da su preučili. Zato će biti primenjena regularizacija podataka - odnosno metode Lasso i Ridge 
+```{r}
+train_data_numeric = as.data.frame(sapply(train_data, as.numeric))
+test_data_numeric = as.data.frame(sapply(test_data, as.numeric))
+
+x = as.matrix(train_data_numeric[, !names(train_data_numeric) %in% c("price_log")])
+y = train_data_numeric$price_log
+
+
+model_lasso = cv.glmnet(x, y, alpha = 1)
+model_ridge = cv.glmnet(x, y, alpha = 0)
+
+lambda_min_lasso = model_lasso$lambda.min
+lambda_min_ridge = model_ridge$lambda.min
+
+x_test = as.matrix(test_data_numeric[, !names(test_data_numeric) %in% c("price_log")])
+y_test = test_data_numeric$price_log
+
+prediction_lasso = predict(model_lasso, s = lambda_min_lasso, newx = x_test)
+prediction_ridge = predict(model_ridge, s = lambda_min_ridge, newx = x_test)
+
+mae_lasso = MAE(y_test, prediction_lasso)
+rmse_lasso = RMSE(y_test, prediction_lasso)
+r2_lasso = R2(y_test, prediction_lasso)
+
+mae_ridge = MAE(y_test, prediction_ridge)
+rmse_ridge = RMSE(y_test, prediction_ridge)
+r2_ridge = R2(y_test, prediction_ridge)
+
+cat("Lasso => Test MAE: ", mae_lasso, "\n")
+cat("Lasso => Test RMSE: ", rmse_lasso, "\n")
+cat("Lasso => Test R^2: ", r2_lasso, "\n\n")
+
+cat("Ridge => Test MAE: ", mae_ridge, "\n")
+cat("Ridge => Test RMSE: ", rmse_ridge, "\n")
+cat("Ridge => Test R^2: ", r2_ridge, "\n")
+```
+Na osnovu metrika, Lasso model ima bolje rezultate u odnosu na Ridge model, ali to nisu znatno bolji rezultati. On ima niže vrednosti MAE i MSE što ukazuje na to da su predviđanja bliža stvarnim vrednostima. Takođe, ima i nešto viši Adjusted R2 što znači da bolje objašnjava varijabilnost u podacima. 
+
+Grafik Lasso: 
+```{r}
+data = data.frame(actual = y_test, predicted = as.vector(prediction_lasso))
+  ggplot(data, aes(x = actual, y = predicted)) +
+    geom_point(color = "darkorange", alpha = 0.5) +
+    geom_abline(intercept = 0, slope = 1,  color = "red", linewidth = 1) +
+    labs(title = "Stvarne vs. Predviđene vrednosti (Lasso)",
+         x = "Stvarne vrednosti",
+         y = "Predviđene vrednosti") +
+    theme_minimal()
+```
+
+## Random Forest
+
+Random Forest je neparametarska metoda koja kombinuje više stabala odlučivanja da bi poboljšala tačnost predikcija. Iako ima veću primenu kod klasifikacionih problema, može da se koristi i za regresiju.
+
+```{r}
+rf_model = randomForest(x = x, y = y, ntree = 20, importance = TRUE)
+rf_model
+importance(rf_model)
+```
+
+Rezultat RF modela je da je srednja kvadratna greška je oko 0.62, a da
+model objašnjava oko 31% varijabilnosti što je skoro 1/3 podataka.
+IncMSE (Increase in MSE) meri povećanje MSE kada se prediktor izostavi iz modela. Visoka vrednost ukazuje da prediktor značajno utiče na tačnost modela odnosno njeno izostavljanje bi pogoršalo performanse. 
+IncNodePurity (Increase in Node Purity) meri povećanje čistote čvora kada se prediktor koristi za cepanje. Visoka vrednost ukazuje na značajan doprinos prediktora u razlikovanju podataka unutar stabala. 
+Bathrooms ima visok IncMSE (9.23) i IncNodePurity(420.25) što ukazuje na to da je ovaj prediktor ključan za tačnost i razlikovanje podataka. Sem batrhooms-a, bitni prediktori su očekivano i bedrooms (6.29/203.14) i guests(10.03/199.62). Iznenađujuće vrednosti ima prediktor region čije su vrednosti 11.94/189.70
+
+
+Stablo odlučivanja može postići bolje performanse ako se poveća broj stabala u modelu ili ako se promeni broj karakteristika koje se nasumično biraju pri svakom cepanju čvora.
+
+```{r}
+rf_model_2 = randomForest(x = x, y = y, 
+                          ntree = 100, 
+                          mtry = floor(sqrt(ncol(x))), 
+                          importance = TRUE)
+rf_model_2
+importance(rf_model_2)
+```
+
+Broj stabala je povećan sa 20 na 100, dakle 5x više. MSE ima manju vrednost nego u prvom modelu RF, smanjena je sa oko 0.62 na približno 0.57 Takođe i % objašnjenje varijabilnosti je povećano sa 31% na oko 36%. Dakle, drugi model ima bolje mere pa će se on koristiti za predikciju nad testnim skupom: 
+
+```{r}
+prediction_RF <- predict(rf_model_2, newdata = x_test)
+```
+Metrike: 
+```{r}
+mae_rf = MAE(y_test, prediction_RF)
+rmse_rf = RMSE(y_test, prediction_RF)
+r2_rf = R2(y_test, prediction_RF)
+
+cat("RF => MAE: ", mae_rf, "\n")
+cat("RF => RMSE: ", rmse_rf, "\n")
+cat("RF => R^2: ", r2_rf, "\n\n")
+```
+
+Grafički prikaz RF-a: 
+
+```{r}
+data = data.frame(actual = y_test, 
+                  predicted = prediction_RF)
+
+ggplot(data, aes(x = actual, y = predicted)) +
+  geom_point(color = "darkorange", alpha = 0.5) +
+  geom_abline(intercept = 0, slope = 1,  color = "red", linewidth = 1)+
+    labs(title = "Stvarne vs. Predviđene vrednosti (Random Forest)",
+         x = "Stvarne vrednosti",
+         y = "Predviđene vrednosti") +
+  theme_minimal()
+```
+
+## KNN 
+KNN može da bude pogodan za predviđanje cena jer je jednostavan za implementaciju i daje precizne rezultate kada su relevantni podaci lokalno grupisani. Takođe, ne pravi pretpostavke o distribuciji podataka, što ga čini fleksibilnim za različite skupove podataka.
+```{r}
+model_knn = train(
+  price_log ~ guests + beds  + region,
+  data = train_data,
+  method = "knn", 
+  trControl = trainControl(method = "cv", number = 5)
+)
+predictions = predict(model_knn, newdata = test_data)
+knn_rmse = RMSE(test_data$price_log, predictions)
+knn_mae = MAE(test_data$price_log, predictions)
+knn_R2 = R2(test_data$price_log, predictions)
+
+cat("KNN => MAE: ", knn_mae, "\n")
+cat("KNN => RMSE: ", knn_rmse, "\n")
+cat("KNN => R^2: ", knn_R2, "\n\n")
+
+data = data.frame(actual = test_data$price_log, 
+                  predicted = predictions)
+
+ggplot(data, aes(x = actual, y = predicted)) +
+  geom_point(color = "darkorange", alpha = 0.5) +
+  geom_abline(intercept = 0, slope = 1,  color = "red", linewidth = 1)+
+    labs(title = "Stvarne vs. Predviđene vrednosti (KNN)",
+         x = "Stvarne vrednosti",
+         y = "Predviđene vrednosti") +
+  theme_minimal()
+```
+
+RF ima najbolju adjusted R2 meru (iznosi 0.36) čime predstavlja najbolji model od svih koji su testirani na ovom testnom skupu. 
+
+
